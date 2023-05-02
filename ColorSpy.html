@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Color Spy</title>
+        <style type="text/css">
+            body{
+                background: #000000;
+                color: #ffffff;
+            }
+            div{
+                border: 2px solid #00c000;
+                margin: 1px;
+                padding: 2px;
+                width: max-content;
+            }
+            canvas{
+                border: 1px solid #808080;
+                margin: 0px;
+                display: block;
+            }
+            p{
+                color: #ffffff;
+            }
+            span{
+                color: #ffc000;
+            }
+            input{
+                margin: 2px;
+            }
+            fieldset{
+                border: 2px solid #ffffff;
+                margin: 2px 0px;
+                width: max-content;
+            }
+            legend{
+                color: #ffffff;
+            }
+            input[type="button"]{
+                margin: 2px 4px;
+            }
+            input[type="button"].remove{
+                background-color: #ff4000;
+                color: #ffffff;
+            }
+        </style>
+    </head>
+    <body>
+        <input type="file" id="inputFile"/>
+        <script type="text/javascript">
+            var inputFile=document.getElementById("inputFile");
+            var file,isFromFile=true;
+
+            function save(cvs){
+                if(confirm("Add background?")){
+                    var saveCvs=document.createElement("canvas");
+                    saveCvs.width=cvs.width;
+                    saveCvs.height=cvs.height;
+                    var saveCtx=saveCvs.getContext("2d",{alpha:true,desynchronized:true,willReadFrequently:false});
+                    saveCtx.imageSmoothingEnabled=false;
+                    saveCtx.clearRect(0,0,saveCvs.width,saveCvs.height);
+                    saveCtx.fillStyle=prompt("Background color:","#000000");
+                    saveCtx.fillRect(0,0,saveCvs.width,saveCvs.height);
+                    saveCtx.drawImage(cvs,0,0);
+                    saveCvs.toBlob((blob)=>{
+                        var objectURL=URL.createObjectURL(blob);
+                        var win=window.open(objectURL);
+                        win.addEventListener("close",function(evt){
+                            URL.revokeObjectURL(objectURL);
+                        },false);
+                    },"image/png",1);
+                    return;
+                }
+                cvs.toBlob((blob)=>{
+                    var objectURL=URL.createObjectURL(blob);
+                    var win=window.open(objectURL);
+                    win.addEventListener("close",function(evt){
+                        URL.revokeObjectURL(objectURL);
+                    },false);
+                },"image/png",1);
+            }
+
+            function displayImage(imageSource){
+                const width=imageSource.width,height=imageSource.height;
+                var div=document.createElement("div");
+                var cvs=document.createElement("canvas");
+                cvs.width=width;
+                cvs.height=height;
+                var ctx=cvs.getContext("2d",{willReadFrequently:true});
+
+                ctx.imageSmoothingEnabled=false;
+                ctx.clearRect(0,0,width,height);
+                ctx.drawImage(imageSource,0,0);
+                div.appendChild(cvs);
+
+                var p=document.createElement("p");
+                if(isFromFile){
+                    p.innerHTML=`name: <span>${file.name}</span> size: <span>${file.size}</span><br/>`+
+                                `width: <span>${width}</span> height: <span>${height}</span><br/>`+
+                                `type: <span>${file.type}</span> lastModified: <span>${(new Date(file.lastModified)).toLocaleString()}</span>`;
+                }else{
+                    p.innerHTML=`width: <span>${width}</span> height: <span>${height}</span>`;
+                    isFromFile=true;
+                }
+                div.appendChild(p);
+
+                var buttonRemove=document.createElement("input"),
+                    buttonHorizontalLine=document.createElement("input"),
+                    buttonVerticalLine=document.createElement("input"),
+                    buttonHistogram=document.createElement("input"),
+                    buttonMagnify=document.createElement("input");
+
+                buttonRemove.setAttribute("type","button");
+                buttonHorizontalLine.setAttribute("type","button");
+                buttonVerticalLine.setAttribute("type","button");
+                buttonHistogram.setAttribute("type","button");
+                buttonMagnify.setAttribute("type","button");
+
+                buttonRemove.setAttribute("value","Remove");
+                buttonRemove.setAttribute("class","remove");
+                buttonHorizontalLine.setAttribute("value","Horizontal Line");
+                buttonVerticalLine.setAttribute("value","Vertical Line");
+                buttonHistogram.setAttribute("value","Histogram");
+                buttonMagnify.setAttribute("value","Magnify");
+
+                buttonRemove.addEventListener("click",(evt)=>{
+                    if(confirm("Remove this cell?\nAll outputs will be lost.")){
+                        document.body.removeChild(div);
+                    }
+                },false);
+
+                buttonHorizontalLine.addEventListener("click",(evt)=>{
+                    var yArr=prompt("y := <frac>|<int>\n<frac> := <int>/<int>","1/2").match(/\d+/gi),
+                        y=0,yDenom=0;
+                    while(true){
+                        if(yArr.length===1){
+                            y=parseInt(yArr[0],10);
+                            if(y>=0&&y<height){
+                                break;
+                            }
+                        }
+                        if(yArr.length===2){
+                            y=parseInt(yArr[0],10);
+                            yDenom=parseInt(yArr[1],10);
+                            if(y>=0&&yDenom>0){
+                                y=Math.floor(height*y/yDenom);
+                                if(y<height){
+                                    break;
+                                }
+                            }
+                        }
+                        alert("Error: Invalid parameter.");
+                        yArr=prompt("y := <frac>|<int>\n<frac> := <int>/<int>","1/2").match(/\d+/gi);
+                    }
+
+                    var bWbHArr=prompt("barWidth, barHeight:","1, 1").match(/\d+/gi),
+                        barWidth=0,barHeight=0;
+                    while(true){
+                        if(bWbHArr.length===2){
+                            barWidth=parseInt(bWbHArr[0],10);
+                            barHeight=parseInt(bWbHArr[1],10);
+                            if(barWidth>0&&barHeight>0){
+                                break;
+                            }
+                        }
+                        alert("Error: Invalid parameter.");
+                        bWbHArr=prompt("barWidth, barHeight:","1, 1").match(/\d+/gi);
+                    }
+
+                    const width1=barWidth*width,height1=barHeight*256;
+
+                    var cvs1=document.createElement("canvas");
+                    cvs1.width=width1;
+                    cvs1.height=height1;
+                    var ctx1=cvs1.getContext("2d");
+
+                    ctx1.imageSmoothingEnabled=false;
+                    ctx1.clearRect(0,0,width1,height1);
+                    ctx1.globalCompositeOperation="lighter";
+
+                    var imageData=ctx.getImageData(0,y,width,1),len=imageData.data.length;
+
+                    for(var k=0,x0=0;k<len;k+=4,x0+=barWidth){
+                        ctx1.fillStyle="#ff0000";
+                        ctx1.fillRect(x0,(255-imageData.data[k])*barHeight,barWidth,barHeight);
+                        ctx1.fillStyle="#00ff00";
+                        ctx1.fillRect(x0,(255-imageData.data[k+1])*barHeight,barWidth,barHeight);
+                        ctx1.fillStyle="#0000ff";
+                        ctx1.fillRect(x0,(255-imageData.data[k+2])*barHeight,barWidth,barHeight);
+                    }
+
+                    var fieldset=document.createElement("fieldset"),
+                        legend=document.createElement("legend");
+                    legend.innerHTML=`${evt.target.value}: y = ${y} (${width1} x ${height1})`;
+
+                    var buttonRemove=document.createElement("input"),
+                        buttonSave=document.createElement("input"),
+                        buttonAsInput=document.createElement("input");
+
+                    buttonRemove.setAttribute("type","button");
+                    buttonSave.setAttribute("type","button");
+                    buttonAsInput.setAttribute("type","button");
+
+                    buttonRemove.setAttribute("value","Remove");
+                    buttonRemove.setAttribute("class","remove");
+                    buttonSave.setAttribute("value","Save");
+                    buttonAsInput.setAttribute("value","As Input");
+
+                    buttonRemove.addEventListener("click",(evt)=>{
+                        if(confirm("Remove this output?")){
+                            div.removeChild(fieldset);
+                        }
+                    },false);
+                    buttonSave.addEventListener("click",(evt)=>{
+                        save(cvs1);
+                    },false);
+                    buttonAsInput.addEventListener("click",(evt)=>{
+                        isFromFile=false;
+                        if(confirm("Add background?")){
+                            var cvs2=document.createElement("canvas");
+                            cvs2.width=width1;
+                            cvs2.height=height1;
+                            var ctx2=cvs2.getContext("2d",{alpha:true,desynchronized:true,willReadFrequently:false});
+                            ctx2.imageSmoothingEnabled=false;
+                            ctx2.clearRect(0,0,width1,height1);
+                            ctx2.fillStyle=prompt("Background color:","#000000");
+                            ctx2.fillRect(0,0,width1,height1);
+                            ctx2.drawImage(cvs1,0,0);
+                            displayImage(cvs2);
+                            return;
+                        }
+                        displayImage(cvs1);
+                    },false);
+
+                    fieldset.appendChild(legend);
+                    fieldset.appendChild(cvs1);
+                    fieldset.appendChild(buttonRemove);
+                    fieldset.appendChild(buttonSave);
+                    fieldset.appendChild(buttonAsInput);
+                    div.appendChild(fieldset);
+                },false);
+
+                buttonVerticalLine.addEventListener("click",(evt)=>{
+                    var xArr=prompt("x := <frac>|<int>\n<frac> := <int>/<int>","1/2").match(/\d+/gi),
+                        x=0,xDenom=0;
+                    while(true){
+                        if(xArr.length===1){
+                            x=parseInt(xArr[0],10);
+                            if(x>=0&&x<width){
+                                break;
+                            }
+                        }
+                        if(xArr.length===2){
+                            x=parseInt(xArr[0],10);
+                            xDenom=parseInt(xArr[1],10);
+                            if(x>=0&&xDenom>0){
+                                x=Math.floor(width*x/xDenom);
+                                if(x<width){
+                                    break;
+                                }
+                            }
+                        }
+                        alert("Error: Invalid parameter.");
+                        xArr=prompt("x := <frac>|<int>\n<frac> := <int>/<int>","1/2").match(/\d+/gi);
+                    }
+
+                    var bWbHArr=prompt("barWidth, barHeight:","1, 1").match(/\d+/gi),
+                        barWidth=0,barHeight=0;
+                    while(true){
+                        if(bWbHArr.length===2){
+                            barWidth=parseInt(bWbHArr[0],10);
+                            barHeight=parseInt(bWbHArr[1],10);
+                            if(barWidth>0&&barHeight>0){
+                                break;
+                            }
+                        }
+                        alert("Error: Invalid parameter.");
+                        bWbHArr=prompt("barWidth, barHeight:","1, 1").match(/\d+/gi);
+                    }
+
+                    const width1=barWidth*height,height1=barHeight*256;
+
+                    var cvs1=document.createElement("canvas");
+                    cvs1.width=width1;
+                    cvs1.height=height1;
+                    var ctx1=cvs1.getContext("2d");
+
+                    ctx1.imageSmoothingEnabled=false;
+                    ctx1.clearRect(0,0,width1,height1);
+                    ctx1.globalCompositeOperation="lighter";
+
+                    var imageData=ctx.getImageData(x,0,1,height),len=imageData.data.length;
+
+                    for(var k=0,x0=0;k<len;k+=4,x0+=barWidth){
+                        ctx1.fillStyle="#ff0000";
+                        ctx1.fillRect(x0,(255-imageData.data[k])*barHeight,barWidth,barHeight);
+                        ctx1.fillStyle="#00ff00";
+                        ctx1.fillRect(x0,(255-imageData.data[k+1])*barHeight,barWidth,barHeight);
+                        ctx1.fillStyle="#0000ff";
+                        ctx1.fillRect(x0,(255-imageData.data[k+2])*barHeight,barWidth,barHeight);
+                    }
+
+                    var fieldset=document.createElement("fieldset"),
+                        legend=document.createElement("legend");
+                    legend.innerHTML=`${evt.target.value}: x = ${x} (${width1} x ${height1})`;
+
+                    var buttonRemove=document.createElement("input"),
+                        buttonSave=document.createElement("input"),
+                        buttonAsInput=document.createElement("input");
+
+                    buttonRemove.setAttribute("type","button");
+                    buttonSave.setAttribute("type","button");
+                    buttonAsInput.setAttribute("type","button");
+
+                    buttonRemove.setAttribute("value","Remove");
+                    buttonRemove.setAttribute("class","remove");
+                    buttonSave.setAttribute("value","Save");
+                    buttonAsInput.setAttribute("value","As Input");
+
+                    buttonRemove.addEventListener("click",(evt)=>{
+                        if(confirm("Remove this output?")){
+                            div.removeChild(fieldset);
+                        }
+                    },false);
+                    buttonSave.addEventListener("click",(evt)=>{
+                        save(cvs1);
+                    },false);
+                    buttonAsInput.addEventListener("click",(evt)=>{
+                        isFromFile=false;
+                        if(confirm("Add background?")){
+                            var cvs2=document.createElement("canvas");
+                            cvs2.width=width1;
+                            cvs2.height=height1;
+                            var ctx2=cvs2.getContext("2d",{alpha:true,desynchronized:true,willReadFrequently:false});
+                            ctx2.imageSmoothingEnabled=false;
+                            ctx2.clearRect(0,0,width1,height1);
+                            ctx2.fillStyle=prompt("Background color:","#000000");
+                            ctx2.fillRect(0,0,width1,height1);
+                            ctx2.drawImage(cvs1,0,0);
+                            displayImage(cvs2);
+                            return;
+                        }
+                        displayImage(cvs1);
+                    },false);
+
+                    fieldset.appendChild(legend);
+                    fieldset.appendChild(cvs1);
+                    fieldset.appendChild(buttonRemove);
+                    fieldset.appendChild(buttonSave);
+                    fieldset.appendChild(buttonAsInput);
+                    div.appendChild(fieldset);
+                },false);
+
+                buttonHistogram.addEventListener("click",(evt)=>{
+                    var xywhArr=prompt("x, y, width, height:",`0, 0, ${width}, ${height}`).match(/\d+/gi),
+                        x=0,y=0,w=0,h=0;
+                    while(true){
+                        if(xywhArr.length===4){
+                            x=parseInt(xywhArr[0],10);
+                            y=parseInt(xywhArr[1],10);
+                            w=parseInt(xywhArr[2],10);
+                            h=parseInt(xywhArr[3],10);
+                            if(x>=0&&y>=0&&w>0&&h>0&&x+w<=width&&y+h<=height){
+                                break;
+                            }
+                        }
+                        alert("Error: Invalid parameter.");
+                        xywhArr=prompt("x, y, width, height:",`0, 0, ${width}, ${height}`).match(/\d+/gi);
+                    }
+
+                    var bWh1Arr=prompt("barWidth, height:","2, 256").match(/\d+/gi),
+                        barWidth=0,height1=0;
+                    while(true){
+                        if(bWh1Arr.length===2){
+                            barWidth=parseInt(bWh1Arr[0],10);
+                            height1=parseInt(bWh1Arr[1],10);
+                            if(barWidth>0&&height1>0){
+                                break;
+                            }
+                        }
+                        alert("Error: Invalid parameter.");
+                        bWh1Arr=prompt("barWidth, height:","2, 256").match(/\d+/gi);
+                    }
+
+                    var width1=barWidth*256;
+
+                    var cvs1=document.createElement("canvas");
+                    cvs1.width=width1;
+                    cvs1.height=height1;
+                    var ctx1=cvs1.getContext("2d");
+
+                    ctx1.imageSmoothingEnabled=false;
+                    ctx1.clearRect(0,0,width1,height1);
+                    ctx1.globalCompositeOperation="lighter";
+
+                    var imageData=ctx.getImageData(x,y,w,h),len=imageData.data.length;
+                    var redCount=new Array(256),greenCount=new Array(256),blueCount=new Array(256);
+
+                    for(var i=0;i<256;++i){
+                        redCount[i]=0;
+                        greenCount[i]=0;
+                        blueCount[i]=0;
+                    }
+
+                    for(var k=0;k<len;k+=4){
+                        ++redCount[imageData.data[k]];
+                        ++greenCount[imageData.data[k+1]];
+                        ++blueCount[imageData.data[k+2]];
+                    }
+
+                    var countMax=redCount[0];
+
+                    for(var i=0;i<256;++i){
+                        if(redCount[i]>countMax){
+                            countMax=redCount[i];
+                        }
+                        if(greenCount[i]>countMax){
+                            countMax=greenCount[i];
+                        }
+                        if(blueCount[i]>countMax){
+                            countMax=blueCount[i];
+                        }
+                    }
+
+                    for(var i=0,x0=0,h0=0;i<256;++i,x0+=barWidth){
+                        ctx1.fillStyle="#ff0000";
+                        h0=redCount[i]*height1/countMax;
+                        ctx1.fillRect(x0,height1-h0,barWidth,h0);
+                        ctx1.fillStyle="#00ff00";
+                        h0=greenCount[i]*height1/countMax;
+                        ctx1.fillRect(x0,height1-h0,barWidth,h0);
+                        ctx1.fillStyle="#0000ff";
+                        h0=blueCount[i]*height1/countMax;
+                        ctx1.fillRect(x0,height1-h0,barWidth,h0);
+                    }
+
+                    var fieldset=document.createElement("fieldset"),
+                        legend=document.createElement("legend");
+                    legend.innerHTML=`${evt.target.value}: x, y, width, height = ${x}, ${y}, ${w}, ${h} (${width1} x ${height1})`;
+
+                    var buttonRemove=document.createElement("input"),
+                        buttonSave=document.createElement("input"),
+                        buttonAsInput=document.createElement("input");
+
+                    buttonRemove.setAttribute("type","button");
+                    buttonSave.setAttribute("type","button");
+                    buttonAsInput.setAttribute("type","button");
+
+                    buttonRemove.setAttribute("value","Remove");
+                    buttonRemove.setAttribute("class","remove");
+                    buttonSave.setAttribute("value","Save");
+                    buttonAsInput.setAttribute("value","As Input");
+
+                    buttonRemove.addEventListener("click",(evt)=>{
+                        if(confirm("Remove this output?")){
+                            div.removeChild(fieldset);
+                        }
+                    },false);
+                    buttonSave.addEventListener("click",(evt)=>{
+                        save(cvs1);
+                    },false);
+                    buttonAsInput.addEventListener("click",(evt)=>{
+                        isFromFile=false;
+                        if(confirm("Add background?")){
+                            var cvs2=document.createElement("canvas");
+                            cvs2.width=width1;
+                            cvs2.height=height1;
+                            var ctx2=cvs2.getContext("2d",{alpha:true,desynchronized:true,willReadFrequently:false});
+                            ctx2.imageSmoothingEnabled=false;
+                            ctx2.clearRect(0,0,width1,height1);
+                            ctx2.fillStyle=prompt("Background color:","#000000");
+                            ctx2.fillRect(0,0,width1,height1);
+                            ctx2.drawImage(cvs1,0,0);
+                            displayImage(cvs2);
+                            return;
+                        }
+                        displayImage(cvs1);
+                    },false);
+
+                    fieldset.appendChild(legend);
+                    fieldset.appendChild(cvs1);
+                    fieldset.appendChild(buttonRemove);
+                    fieldset.appendChild(buttonSave);
+                    fieldset.appendChild(buttonAsInput);
+                    div.appendChild(fieldset);
+                },false);
+
+                buttonMagnify.addEventListener("click",(evt)=>{
+                    var eventArr=prompt("Events:","click, click").match(/\w+/gi);
+                    while(eventArr.length!==2){
+                        alert("Error: Invalid parameter.");
+                        eventArr=prompt("Events:","click, click").match(/\w+/gi);
+                    }
+
+                    var whmArr=prompt("width, height, magnification:","34, 21, 16").match(/\d+/gi),
+                        w=0,h=0,magnification=0;
+                    while(true){
+                        if(whmArr.length===3){
+                            w=parseInt(whmArr[0],10);
+                            h=parseInt(whmArr[1],10);
+                            magnification=parseInt(whmArr[2],10);
+                            if(w>0&&h>0&&magnification>0){
+                                break;
+                            }
+                        }
+                        alert("Error: Invalid parameter.");
+                        whmArr=prompt("width, height, magnification:","34, 21, 16").match(/\d+/gi);
+                    }
+
+                    var x=0,y=0,isGridOn=magnification>7,imageData=new ImageData(1,1);
+                    const width1=w*magnification,height1=h*magnification;
+
+                    var cvs1=document.createElement("canvas");
+                    cvs1.width=width1;
+                    cvs1.height=height1;
+                    var ctx1=cvs1.getContext("2d");
+
+                    ctx1.imageSmoothingEnabled=false;
+
+                    function drawCvs1(){
+                        imageData=ctx.getImageData(x,y,w,h);
+                        ctx1.clearRect(0,0,width1,height1);
+                        ctx1.drawImage(cvs,x,y,w,h,0,0,width1,height1);
+                        if(isGridOn){
+                            var mm1=magnification-1;
+                            for(var i=0,k=0,y0=0;i<h;++i,y0+=magnification){
+                                for(var j=0,x0=0;j<w;++j,k+=4,x0+=magnification){
+                                    ctx1.fillStyle=`rgb(${0xff&~imageData.data[k]}, ${0xff&~imageData.data[k+1]}, ${0xff&~imageData.data[k+2]})`;
+                                    ctx1.fillRect(x0,y0,magnification,1);
+                                    ctx1.fillRect(x0,y0,1,magnification);
+                                    ctx1.fillRect(x0,y0+mm1,magnification,1);
+                                    ctx1.fillRect(x0+mm1,y0,1,magnification);
+                                }
+                            }
+                        }
+                    }
+
+                    cvs.addEventListener(eventArr[0],(evt)=>{
+                        x=Math.min(Math.max(Math.round(evt.offsetX)-(w>>>1),0),width-w),
+                        y=Math.min(Math.max(Math.round(evt.offsetY)-(h>>>1),0),height-h);
+                        drawCvs1();
+                    },false);
+
+                    var p=document.createElement("p");
+
+                    cvs1.addEventListener(eventArr[1],(evt)=>{
+                        var x0=Math.min(Math.max(Math.floor(evt.offsetX/magnification),0),w-1),
+                            y0=Math.min(Math.max(Math.floor(evt.offsetY/magnification),0),h-1),
+                            k=(y0*w+x0)<<2,
+                            r=imageData.data[k],
+                            g=imageData.data[k+1],
+                            b=imageData.data[k+2],
+                            a=imageData.data[k+3];
+                        p.innerHTML=`x, y = (${x+x0}, ${y+y0}), color = rgba(${r}, ${g}, ${b}, ${a}) (#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}${a.toString(16).padStart(2,"0")})`;
+                    },false);
+
+                    var fieldset=document.createElement("fieldset"),
+                        legend=document.createElement("legend");
+                    legend.innerHTML=`${evt.target.value}: ${w} x ${h}, magnification = ${magnification} (${width1} x ${height1})`;
+
+                    var buttonRemove=document.createElement("input"),
+                        buttonSave=document.createElement("input"),
+                        buttonAsInput=document.createElement("input"),
+                        buttonGrid=document.createElement("input");
+
+                    buttonRemove.setAttribute("type","button");
+                    buttonSave.setAttribute("type","button");
+                    buttonAsInput.setAttribute("type","button");
+                    buttonGrid.setAttribute("type","button");
+
+                    buttonRemove.setAttribute("value","Remove");
+                    buttonRemove.setAttribute("class","remove");
+                    buttonSave.setAttribute("value","Save");
+                    buttonAsInput.setAttribute("value","As Input");
+                    buttonGrid.setAttribute("value","Grid");
+
+                    buttonRemove.addEventListener("click",(evt)=>{
+                        if(confirm("Remove this output?")){
+                            div.removeChild(fieldset);
+                        }
+                    },false);
+                    buttonSave.addEventListener("click",(evt)=>{
+                        save(cvs1);
+                    },false);
+                    buttonAsInput.addEventListener("click",(evt)=>{
+                        isFromFile=false;
+                        if(confirm("Add background?")){
+                            var cvs2=document.createElement("canvas");
+                            cvs2.width=width1;
+                            cvs2.height=height1;
+                            var ctx2=cvs2.getContext("2d",{alpha:true,desynchronized:true,willReadFrequently:false});
+                            ctx2.imageSmoothingEnabled=false;
+                            ctx2.clearRect(0,0,width1,height1);
+                            ctx2.fillStyle=prompt("Background color:","#000000");
+                            ctx2.fillRect(0,0,width1,height1);
+                            ctx2.drawImage(cvs1,0,0);
+                            displayImage(cvs2);
+                            return;
+                        }
+                        displayImage(cvs1);
+                    },false);
+                    buttonGrid.addEventListener("click",(evt)=>{
+                        isGridOn=!isGridOn;
+                        drawCvs1();
+                    },false);
+
+                    fieldset.appendChild(legend);
+                    fieldset.appendChild(cvs1);
+                    fieldset.appendChild(p);
+                    fieldset.appendChild(buttonRemove);
+                    fieldset.appendChild(buttonSave);
+                    fieldset.appendChild(buttonAsInput);
+                    fieldset.appendChild(buttonGrid);
+                    div.appendChild(fieldset);
+                    drawCvs1();
+                },false);
+
+                div.appendChild(buttonRemove);
+                div.appendChild(buttonHorizontalLine);
+                div.appendChild(buttonVerticalLine);
+                div.appendChild(buttonHistogram);
+                div.appendChild(buttonMagnify);
+
+                document.body.appendChild(div);
+            }
+
+            inputFile.addEventListener("change",(evt)=>{
+                file=inputFile.files[0];
+                createImageBitmap(file).then(
+                    displayImage,
+                    (reason)=>{
+                        alert(reason);
+                        console.log(reason);
+                    }
+                );
+            },false);
+        </script>
+    </body>
+</html>

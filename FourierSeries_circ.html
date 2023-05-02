@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="theme-color" content="#000000"/>
+<title>Fourier Series</title>
+<style type="text/css">
+*{font-size:40px;font-family:monospace;}
+body{background:#000000;color:#ffffff;}
+canvas{position:absolute;left:0px;top:0px;border:4px solid #ffffff;}
+input[type="button"]{position:absolute;width:512px;height:100px;border:4px outset #004400;background:#009900;color:#ffffff;font-size:64px;text-align:center;line-height:100px;}
+textarea{position:absolute;left:0px;top:1364px;width:1024px;height:1024px;border:4px solid #ffff00;background:#000000;color:#ffffff;font-size:32px;overflow:scroll;}
+#sp{width:600px;left:108px;top:1040px;}
+#toDataURL{left:0px;top:1148px;}
+#toBlob{left:520px;top:1148px;}
+#drawFigure{left:0px;top:1256px;}
+#outputData{left:520px;top:1256px;width:254px;}
+#reCalc{left:778px;top:1256px;width:254px;}
+textarea::selection{background:#ff8000;color:#ffffff;}
+#clr2{left:0px;top:1040px;width:100px;background:#cc0000;border:4px outset #ff0000;}
+#sw0{left:716px;top:1040px;width:100px;background:#0000cc;border:4px outset #0000ff;}
+#sw1{left:824px;top:1040px;width:100px;background:#cccc00;border:4px outset #ffff00;}
+#sw2{left:932px;top:1040px;width:100px;background:#00cc00;border:4px outset #00ff00;}
+</style>
+</head>
+<body>
+<canvas width="1024" height="1024" id="cvs0"></canvas>
+<canvas width="1024" height="1024" id="cvs1"></canvas>
+<canvas width="1024" height="1024" id="cvs2"></canvas>
+
+<input type="button" id="clr2" value="C"></input>
+<input type="button" id="sp" value="&#11035"></input>
+<input type="button" id="sw0" value="0"></input>
+<input type="button" id="sw1" value="1"></input>
+<input type="button" id="sw2" value="2"></input>
+<input type="button" id="toDataURL" value="toDataURL"></input>
+<input type="button" id="toBlob" value="toBlob"></input>
+<input type="button" id="drawFigure" value="开始画图"></input>
+<input type="button" id="outputData" value="输出"></input>
+<input type="button" id="reCalc" value="重算"></input>
+
+<textarea id="text"></textarea>
+
+<script type="text/javascript">
+var cvs0=document.getElementById("cvs0");
+var ctx0=cvs0.getContext("2d");
+var cvs1=document.getElementById("cvs1");
+var ctx1=cvs1.getContext("2d");
+var cvs2=document.getElementById("cvs2");
+var ctx2=cvs2.getContext("2d");
+var sp=document.getElementById("sp");
+var drawFigure=document.getElementById("drawFigure");
+var text=document.getElementById("text");
+var sin=Math.sin,cos=Math.cos,pi2=Math.PI*2;
+var x0=0,y0=0,tnum=0;
+var A=[],phi=[];
+var ft=[300,0,300,300,-300,300,-300,-300,300,-300,300,0];
+var L=(ft.length>>>1)-1;
+var Nterms=0,play=true,vis=7,imgData;
+
+function f(t){
+var i=t*L/pi2;
+var left=Math.floor(i),right=Math.min(left+1,L);
+left<<=1;
+right<<=1;
+var l0=ft[left],l1=ft[left+1],r0=ft[right],r1=ft[right+1];
+i-=left>>>1;
+return [l0+(r0-l0)*i,l1+(r1-l1)*i];
+}
+
+function ftexpint(n,t){
+var a=f(t),nt=n*t;
+var ar=a[0],ai=a[1],br=cos(nt),bi=sin(nt);
+return [ar*br-ai*bi,ar*bi+ai*br];
+}
+
+function coeff(n,M){
+var Re=0,Im=0;
+var M2=M*2,PI2=pi2,tmp=f(0);
+var lowRe=tmp[0],lowIm=tmp[1],highRe=0,highIm=0;
+for(var i=1;i<=M;i++){
+tmp=ftexpint(-n,i*PI2/M);
+highRe=tmp[0];
+highIm=tmp[1];
+Re+=(lowRe+highRe)/M2;
+Im+=(lowIm+highIm)/M2;
+lowRe=highRe;
+lowIm=highIm;
+}
+return [Re,Im];
+}
+
+function drawf(ctx){
+ctx.beginPath();
+var l=ft.length;
+ctx.moveTo(ft[0],ft[1]);
+for(var i=2;i<l;i++){
+ctx.lineTo(ft[i++],ft[i]);
+}
+ctx.stroke();
+ctx.closePath();
+}
+
+function startPause(evt){
+play=!play;
+if(play){
+anim();
+evt.target.value="\u2b1b";
+}else{
+evt.target.value="\u25b6";
+}
+}
+
+function enableDraw(cvs){
+cvs.addEventListener("touchstart",handleStart,false);
+cvs.addEventListener("touchmove",handleMove,false);
+cvs.addEventListener("touchend",handleEnd,false);
+}
+
+function disableDraw(cvs){
+cvs.removeEventListener("touchstart",handleStart,false);
+cvs.removeEventListener("touchmove",handleMove,false);
+cvs.removeEventListener("touchend",handleEnd,false);
+}
+
+function startDraw(evt){
+play=false;
+sp.value="\u25b6";
+sp.style.background="#808080";
+sp.removeEventListener("click",startPause,false);
+cvs1.style.visibility="hidden";
+cvs2.style.visibility="hidden";
+document.getElementById("sw1").style.background="#000000";
+document.getElementById("sw2").style.background="#000000";
+vis&=1;
+ctx0.fillRect(-512,-512,1024,1024);
+ctx0.strokeStyle="#ffffff";
+ctx0.lineWidth=1;
+
+text.value+="ft=["+ft+"];\n";
+ft=[];
+
+enableDraw(cvs0);
+enableDraw(cvs1);
+enableDraw(cvs2);
+
+evt.target.style.background="#808080";
+evt.target.value="完成画图";
+evt.target.removeEventListener("click",startDraw,false);
+}
+
+function finishDraw(evt){
+disableDraw(cvs0);
+disableDraw(cvs1);
+disableDraw(cvs2);
+
+cvs1.style.visibility="visible";
+cvs2.style.visibility="visible";
+document.getElementById("sw1").style.background="#cccc00";
+document.getElementById("sw2").style.background="#00cc00";
+vis|=6;
+
+var str="";
+var matched=str.match(/\d+/ig);
+
+while(!matched||matched.length<2){
+str=prompt("请输入：\n展开项数+任意分隔符+积分区间个数","16"+("\x20\x21\x22\x23\x24\x25\x26\x27\x2a\x2b\x2c\x2d\x2e\x2f\x3a\x3b\x3f\x40\x5c\x5e\x5f\x60\x7c\x7e")[Math.floor(Math.random()*24)]+"8192");
+matched=str.match(/\d+/ig);
+}
+
+init(parseInt(matched[0],10),parseInt(matched[1],10));
+anim();
+evt.target.value="开始画图";
+evt.target.addEventListener("click",startDraw,false);
+sp.style.background="#009900";
+sp.addEventListener("click",startPause,false);
+evt.target.removeEventListener("click",finishDraw,false);
+}
+
+function handleStart(evt){
+evt.preventDefault();
+var t=evt.touches[0];
+var X=t.pageX-516,Y=516-t.pageY;
+ft.push(X);
+ft.push(Y);
+ctx0.beginPath();
+ctx0.moveTo(X,Y);
+}
+
+function handleMove(evt){
+evt.preventDefault();
+var t=evt.touches[0];
+var X=t.pageX-516,Y=516-t.pageY;
+ft.push(X);
+ft.push(Y);
+ctx0.lineTo(X,Y);
+ctx0.stroke();
+ctx0.closePath();
+ctx0.beginPath();
+ctx0.moveTo(X,Y);
+}
+
+function handleEnd(evt){
+evt.preventDefault();
+var t=evt.changedTouches[0];
+var X=t.pageX-516,Y=516-t.pageY;
+ctx0.lineTo(X,Y);
+ctx0.stroke();
+ctx0.closePath();
+drawFigure.style.background="#009900";
+drawFigure.addEventListener("click",finishDraw,false);
+}
+
+ctx0.imageSmoothingEnabled=false;
+ctx1.imageSmoothingEnabled=false;
+ctx2.imageSmoothingEnabled=false;
+
+ctx0.setTransform(1,0,0,-1,512,512);
+ctx1.setTransform(1,0,0,-1,512,512);
+ctx2.setTransform(1,0,0,-1,512,512);
+
+function init(terms,max){
+tnum=0;
+A=[];
+phi=[];
+Nterms=terms*2;
+L=(ft.length>>>1)-1;
+
+ctx0.fillStyle="#000000";
+ctx0.strokeStyle="#0000ff";
+ctx0.lineWidth=2;
+ctx0.fillRect(-512,-512,1024,1024);
+drawf(ctx0);
+ctx1.clearRect(-512,-512,1024,1024);
+ctx2.clearRect(-512,-512,1024,1024);
+
+ctx1.fillStyle="#000000";
+ctx1.strokeStyle="#ffff00";
+ctx1.lineWidth=2;
+ctx1.lineJoin="round";
+
+ctx2.fillStyle="#00ff00";
+ctx2.strokeStyle="#00ff00";
+ctx2.lineWidth=2;
+
+ctx2.save();
+ctx2.fillStyle="#00ff00";
+ctx2.beginPath();
+ctx2.moveTo(6,6);
+ctx2.arc(6,6,6,0,7,0);
+ctx2.fill();
+ctx2.closePath();
+ctx2.restore();
+
+imgData=ctx2.getImageData(512,500,12,12);
+
+ctx2.clearRect(-512,-512,1024,1024);
+
+var c=coeff(0,max);
+var x=c[0],y=c[1],Re=0,Im=0;
+x0=x;
+y0=y;
+for(var i=1;i<=terms;i++){
+c=coeff(i,max);
+Re=c[0];
+Im=c[1];
+x+=Re;
+y+=Im;
+A.push(Math.hypot(Re,Im));
+phi.push(Math.atan2(Im,Re));
+c=coeff(-i,max);
+Re=c[0];
+Im=c[1];
+x+=Re;
+y+=Im;
+A.push(Math.hypot(Re,Im));
+phi.push(Math.atan2(Im,Re));
+}
+
+ctx2.beginPath();
+ctx2.moveTo(x,y);
+
+}
+
+function anim(){
+var x=x0,y=y0,t=tnum*pi2/1024,o=0,Ai=0,phii=0;
+ctx1.clearRect(-512,-512,1024,1024);
+ctx1.beginPath();
+ctx1.moveTo(x,y);
+for(var i=0;i<Nterms;i++){
+o=(i>>>1)+1;
+Ai=A[i];
+phii=phi[i];
+x+=Ai*cos(o*t+phii);
+y+=Ai*sin(o*t+phii);
+ctx1.lineTo(x,y);
+i++;
+Ai=A[i];
+phii=phi[i];
+x+=Ai*cos(phii-o*t);
+y+=Ai*sin(phii-o*t);
+ctx1.lineTo(x,y);
+}
+ctx1.stroke();
+ctx1.closePath();
+ctx1.putImageData(imgData,x+506,506-y);
+ctx2.lineTo(x,y);
+ctx2.stroke();
+ctx2.closePath();
+ctx2.beginPath();
+ctx2.moveTo(x,y);
+tnum++;
+if(play){requestAnimationFrame(anim);}
+}
+
+sp.addEventListener("click",startPause,false);
+
+document.getElementById("toDataURL").addEventListener("click",function(evt){
+var str=prompt("请输入需要的图层：\n0蓝图 1黄杆 2绿线","012");
+if(!str){return 0;}
+var zero=str.search("0")!==-1,one=str.search("1")!==-1,two=str.search("2")!==-1;
+
+ctx0.save();
+ctx0.resetTransform();
+if(!zero){ctx0.fillRect(0,0,1024,1024);}
+if(one){ctx0.drawImage(cvs1,0,0,1024,1024,0,0,1024,1024);}
+if(two){ctx0.drawImage(cvs2,0,0,1024,1024,0,0,1024,1024);}
+
+window.open(cvs0.toDataURL("image/png",1));
+
+ctx0.fillRect(0,0,1024,1024);
+ctx0.restore();
+drawf(ctx0);
+
+},false);
+
+document.getElementById("toBlob").addEventListener("click",function(evt){
+var str=prompt("请输入需要的图层：\n0蓝图 1黄杆 2绿线","012");
+if(!str){return 0;}
+var zero=str.search("0")!==-1,one=str.search("1")!==-1,two=str.search("2")!==-1;
+
+ctx0.save();
+ctx0.resetTransform();
+if(!zero){ctx0.fillRect(0,0,1024,1024);}
+if(one){ctx0.drawImage(cvs1,0,0,1024,1024,0,0,1024,1024);}
+if(two){ctx0.drawImage(cvs2,0,0,1024,1024,0,0,1024,1024);}
+
+cvs0.toBlob(function(blob){
+window.open(URL.createObjectURL(blob));
+},"image/png");
+
+ctx0.fillRect(0,0,1024,1024);
+ctx0.restore();
+drawf(ctx0);
+
+},false);
+
+drawFigure.addEventListener("click",startDraw,false);
+
+document.getElementById("outputData").addEventListener("click",function(evt){
+text.value+="ft=["+ft+"];\n";
+},false);
+
+document.getElementById("clr2").addEventListener("click",function(evt){
+ctx2.clearRect(-512,-512,1024,1024);
+},false);
+
+document.getElementById("sw0").addEventListener("click",function(evt){
+vis^=1;
+if((vis&1)===1){
+cvs0.style.visibility="visible";
+evt.target.style.background="#0000cc";
+}else{
+cvs0.style.visibility="hidden";
+evt.target.style.background="#000000";
+}
+},false);
+
+document.getElementById("sw1").addEventListener("click",function(evt){
+vis^=2;
+if((vis&2)===2){
+cvs1.style.visibility="visible";
+evt.target.style.background="#cccc00";
+}else{
+cvs1.style.visibility="hidden";
+evt.target.style.background="#000000";
+}
+},false);
+
+document.getElementById("sw2").addEventListener("click",function(evt){
+vis^=4;
+if((vis&4)===4){
+cvs2.style.visibility="visible";
+evt.target.style.background="#00cc00";
+}else{
+cvs2.style.visibility="hidden";
+evt.target.style.background="#000000";
+}
+},false);
+
+document.getElementById("reCalc").addEventListener("click",function(evt){
+var str="",playing=play;
+var matched=str.match(/\d+/ig);
+
+while(!matched||matched.length<2){
+str=prompt("请输入：\n展开项数+任意分隔符+积分区间个数","16"+("\x20\x21\x22\x23\x24\x25\x26\x27\x2a\x2b\x2c\x2d\x2e\x2f\x3a\x3b\x3f\x40\x5c\x5e\x5f\x60\x7c\x7e")[Math.floor(Math.random()*24)]+"8192");
+matched=str.match(/\d+/ig);
+}
+
+play=false;
+sp.value="\u25b6";
+
+init(parseInt(matched[0],10),parseInt(matched[1],10));
+if(!playing){anim();}
+},false);
+
+(function (){
+ft=[];
+var pi=Math.PI;
+for(var i=0;i<601;i++){
+ft.push(400*Math.cos(pi*i/600),400*Math.sin(pi*i/600));
+}
+})();
+
+
+
+
+
+
+init(16,128);
+anim();
+
+</script>
+</body>
+</html>

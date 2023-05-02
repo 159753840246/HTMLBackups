@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="theme-color" content="#000000" />
+    <title>GrafEq</title>
+    <style type="text/css">
+        div {
+            background: #000000;
+            color: #ffffff;
+        }
+
+        .btn {
+            cursor: pointer;
+        }
+
+        #f {
+            position: absolute;
+            top: 1060px;
+            left: 0px;
+            width: 1024px;
+            height: 190px;
+            border: 2px solid #00ff00;
+        }
+
+        #cvs {
+            border: 2px solid #00ff00;
+            position: absolute;
+            top: 16px;
+            left: 0px;
+        }
+
+        #grd {
+            border: 2px solid #00ff00;
+            position: absolute;
+            top: 16px;
+            left: 0px;
+        }
+
+        #disp {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 756px;
+            height: 42px;
+            border: 2px solid #ffff00;
+            font-size: 32px;
+            text-align: right;
+            line-height: 42px;
+        }
+
+        #sp {
+            position: absolute;
+            top: 4px;
+            left: 768px;
+            width: 248px;
+            height: 85px;
+            border: 2px solid #0000ff;
+            font-size: 40px;
+            text-align: center;
+            line-height: 85px;
+        }
+
+        #next {
+            position: absolute;
+            top: 97px;
+            left: 768px;
+            width: 248px;
+            height: 85px;
+            border: 2px solid #0000ff;
+            font-size: 40px;
+            text-align: center;
+            line-height: 85px;
+        }
+
+        #ck {
+            position: absolute;
+            top: 54px;
+            left: 4px;
+            width: 374px;
+            height: 60px;
+            border: 2px solid #00ff00;
+            font-size: 40px;
+            text-align: center;
+            line-height: 60px;
+        }
+
+        #bggd {
+            position: absolute;
+            top: 54px;
+            left: 386px;
+            width: 374px;
+            height: 60px;
+            border: 2px solid #00ff00;
+            font-size: 40px;
+            text-align: center;
+            line-height: 60px;
+        }
+
+        #toDataURL {
+            position: absolute;
+            top: 122px;
+            left: 4px;
+            width: 374px;
+            height: 60px;
+            border: 2px solid #00ff00;
+            font-size: 40px;
+            text-align: center;
+            line-height: 60px;
+        }
+
+        #toBlob {
+            position: absolute;
+            top: 122px;
+            left: 386px;
+            width: 374px;
+            height: 60px;
+            border: 2px solid #00ff00;
+            font-size: 40px;
+            text-align: center;
+            line-height: 60px;
+        }
+    </style>
+</head>
+
+<body style="background:#000000;color:#ffffff;">
+    <canvas width="1024" height="1024" id="cvs"></canvas>
+    <canvas width="1024" height="1024" id="grd" style="visibility:visible;"></canvas>
+    <div id="f">
+        <div id="disp"></div>
+        <div class="btn" id="ck" style="background:#ffffff;color:#000000">Grid</div>
+        <div class="btn" id="sp">STOP</div>
+        <div class="btn" id="next">NEXT</div>
+        <div class="btn" id="bggd">Prt_Grid</div>
+        <div class="btn" id="toDataURL">toDataURL</div>
+        <div class="btn" id="toBlob">toBlob</div>
+    </div>
+    <script type="text/javascript">
+        var cvs = document.getElementById("cvs");
+        var ctx = cvs.getContext("2d");
+        var grd = document.getElementById("grd");
+        var ctx1 = grd.getContext("2d");
+        var disp = document.getElementById("disp");
+        var cked = true,
+            GOON = true,
+            func;
+        var r, USet, Ox = 512,
+            Oy = 512,
+            u = 32,
+            divideLimit = 16,
+            N = 0;
+        var TColor = "#000000",
+            FColor = "#ffffff",
+            ZColor = "#ff8000",
+            UColor = "#ff0000",
+            LColor = "#000000",
+            BColor = "#ffffff";
+
+        ctx.imageSmoothingEnabled = false;
+        ctx1.imageSmoothingEnabled = false;
+
+        function wr(s) {
+            disp.innerHTML = s;
+        }
+
+        function region(dx, dy, x, y) {
+            USet = [((dx << 12) + dy) * 16777216 + (x << 12) + y];
+            N = Math.ceil(Math.log2(Math.max(dx, dy)));
+            ctx.fillStyle = UColor;
+            ctx.fillRect(x, y, dx, dy);
+            ctx.fillStyle = "#000000";
+        }
+
+        function gcd(a, b) {
+            b %= a;
+            while (a && b) {
+                a %= b;
+                if (a) {
+                    b %= a;
+                }
+            }
+            return a ? a : b;
+        }
+
+        function add(a, b) {
+            return [a[0] + b[0], a[1] + b[1]];
+        }
+
+        function sub(a, b) {
+            return [a[0] - b[1], a[1] - b[0]];
+        }
+
+        function mul(a, b) {
+            var a0 = a[0],
+                a1 = a[1],
+                b0 = b[0],
+                b1 = b[1];
+            var min = Infinity,
+                max = -Infinity;
+            if (a0 > 0) {
+                if (b0 >= 0) {
+                    min = a0 * b0;
+                }
+                if (b1 <= 0) {
+                    max = a0 * b1;
+                }
+            } else {
+                if (b1 >= 0) {
+                    min = a0 * b1;
+                }
+                if (b0 <= 0) {
+                    max = a0 * b0;
+                }
+            }
+            if (a1 <= 0) {
+                if (b1 < 0) {
+                    min = a1 * b1;
+                }
+                if (b0 > 0) {
+                    max = a1 * b0;
+                }
+            } else {
+                if (b0 < 0) {
+                    min = Math.min(min, a1 * b0);
+                }
+                if (b1 > 0) {
+                    max = Math.max(max, a1 * b1);
+                }
+            }
+            return [min, max];
+        }
+
+        function div(a, b) {
+            var a0 = a[0],
+                a1 = a[1],
+                b0 = b[0],
+                b1 = b[1];
+            if (b0 > 0) {
+                return [a0 > 0 ? a0 / b1 : a0 / b0, a1 > 0 ? a1 / b0 : a1 / b1];
+            }
+            if (b1 < 0) {
+                return [a1 > 0 ? a1 / b1 : a1 / b0, a0 > 0 ? a0 / b0 : a0 / b1];
+            }
+            if (b0 === 0) {
+                if (b1 === 0) {
+                    return [Infinity, Infinity];
+                }
+                return [a0 >= 0 ? a0 / b1 : -Infinity, a1 > 0 ? Infinity : a1 / b1];
+            }
+            if (b1 === 0) {
+                return [a1 > 0 ? -Infinity : a1 / b0, a0 >= 0 ? a0 / b0 : Infinity];
+            }
+            return [-Infinity, Infinity];
+        }
+
+        function min(a, b) {
+            return [Math.min(a[0], b[0]), Math.min(a[1], b[1])];
+        }
+
+        function max(a, b) {
+            return [Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+        }
+
+        function neg(a) {
+            return [-a[1], -a[0]];
+        }
+
+        function inv(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            if (a0 > 0 || a1 < 0) {
+                return [1 / a1, 1 / a0];
+            }
+            if (a0 === 0) {
+                if (a1 === 0) {
+                    return [Infinity, Infinity];
+                }
+                return [1 / a1, Infinity];
+            }
+            if (a1 === 0) {
+                return [-Infinity, 1 / a0];
+            }
+            return [-Infinity, Infinity];
+        }
+
+        function abs(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            if (a0 >= 0) {
+                return [a0, a1];
+            }
+            if (a1 <= 0) {
+                return [-a1, -a0];
+            }
+            return [0, a1 > -a0 ? a1 : -a0];
+        }
+
+        function sq(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            if (a0 >= 0) {
+                return [a0 * a0, a1 * a1];
+            }
+            if (a1 <= 0) {
+                return [a1 * a1, a0 * a0];
+            }
+            return [0, a1 > -a0 ? a1 * a1 : a0 * a0];
+        }
+
+        function cb(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 * a0 * a0, a1 * a1 * a1];
+        }
+
+        function pwr(a, e) {
+            var w = 0,
+                e1 = e,
+                c = 1;
+            while (e1) {
+                e1 >>>= 1;
+                ++w;
+            }
+            while (w) {
+                c *= (e & 1 << --w) ? c * a : c;
+            }
+            return c;
+        }
+
+        function powN(a, n) {
+            var a0 = a[0],
+                a1 = a[1];
+            if (n & 1 || a0 >= 0) {
+                return [pwr(a0, n), pwr(a1, n)];
+            }
+            if (a1 <= 0) {
+                return [pwr(a1, n), pwr(a0, n)];
+            }
+            return [0, pwr(a1 > -a0 ? a1 : -a0, n)];
+        }
+
+        function sqrt(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 < 0 ? -Infinity : Math.sqrt(a0), a1 < 0 ? -Infinity : Math.sqrt(a1)];
+        }
+
+        function cbrt(a) {
+            return [Math.cbrt(a[0]), Math.cbrt(a[1])];
+        }
+
+        function rootN(a, n) {
+            var a0 = a[0],
+                a1 = a[1],
+                ni = 1 / n;
+            if (n & 1) {
+                return [a0 < 0 ? -Math.pow(-a0, ni) : Math.pow(a0, ni), a1 < 0 ? -Math.pow(-a1, ni) : Math.pow(a1, ni)];
+            }
+            return [a0 < 0 ? -Infinity : Math.pow(a0, ni), a1 < 0 ? -Infinity : Math.pow(a1, ni)];
+        }
+
+        function powQ(a, numer, denom) {
+            var a0 = a[0],
+                a1 = a[1],
+                p = numer / denom,
+                g = gcd(numer, denom);
+            numer /= g;
+            denom /= g;
+            if (denom & 1) {
+                if (numer & 1) {
+                    return [a0 < 0 ? -Math.pow(-a0, p) : Math.pow(a0, p), a1 < 0 ? -Math.pow(-a1, p) : Math.pow(a1, p)];
+                }
+                if (a0 >= 0) {
+                    return [Math.pow(a0, p), Math.pow(a1, p)];
+                }
+                if (a1 <= 0) {
+                    return [Math.pow(-a1, p), Math.pow(-a0, p)];
+                }
+                return [0, Math.pow(a1 > -a0 ? a1 : -a0, p)];
+            }
+            return [a0 < 0 ? -Infinity : Math.pow(a0, p), a1 < 0 ? -Infinity : Math.pow(a1, p)];
+        }
+
+        function pow(a, p) {
+            var a0 = a[0],
+                a1 = a[1];
+            if (p < 0) {
+                return [a1 < 0 ? Infinity : Math.pow(a1, p), a0 < 0 ? Infinity : Math.pow(a0, p)];
+            }
+            return [a0 < 0 ? -Infinity : Math.pow(a0, p), a1 < 0 ? -Infinity : Math.pow(a1, p)];
+        }
+
+        function hypot(a, b) {
+            var a0 = a[0],
+                a1 = a[1],
+                b0 = b[0],
+                b1 = b[1];
+            var xmin = 0,
+                xmax = 0,
+                ymin = 0,
+                ymax = 0;
+            if (a0 >= 0) {
+                xmin = a0 * a0;
+                xmax = a1 * a1;
+            } else if (a1 <= 0) {
+                xmin = a1 * a1;
+                xmax = a0 * a0;
+            } else {
+                xmax = a1 > -a0 ? a1 * a1 : a0 * a0;
+            }
+            if (b0 >= 0) {
+                ymin = b0 * b0;
+                ymax = b1 * b1;
+            } else if (b1 <= 0) {
+                ymin = b1 * b1;
+                ymax = b0 * b0;
+            } else {
+                ymax = b1 > -b0 ? b1 * b1 : b0 * b0;
+            }
+            return [Math.sqrt(xmin + ymin), Math.sqrt(xmax + ymax)];
+        }
+
+        function exp(a) {
+            return [Math.exp(a[0]), Math.exp(a[1])];
+        }
+
+        function expm1(a) {
+            return [Math.expm1(a[0]), Math.expm1(a[1])];
+        }
+
+        function bexp(base, a) {
+            return base < 0 ? [Infinity, Infinity] : base < 1 ? [Math.pow(base, a[1]), Math.pow(base, a[0])] : [Math.pow(base, a[0]), Math.pow(base, a[1])];
+        }
+
+        function log(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 > 0 ? Math.log(a0) : -Infinity, a1 > 0 ? Math.log(a1) : -Infinity];
+        }
+
+        function log2(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 > 0 ? Math.log2(a0) : -Infinity, a1 > 0 ? Math.log2(a1) : -Infinity];
+        }
+
+        function log10(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 > 0 ? Math.log10(a0) : -Infinity, a1 > 0 ? Math.log10(a1) : -Infinity];
+        }
+
+        function log1p(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 > -1 ? Math.log1p(a0) : -Infinity, a1 > -1 ? Math.log1p(a1) : -Infinity];
+        }
+
+        function sin(a) {
+            var pi2l = 6.283185307179586,
+                pi2r = 6.283185307179587,
+                a0 = a[0],
+                a1 = a[1];
+            if (a1 - a0 >= pi2r) {
+                return [-1, 1];
+            }
+            var l = a0 / (a0 >= 0 ? pi2r : pi2l),
+                r = a1 / (a1 >= 0 ? pi2l : pi2r);
+            var sl = Math.sin(a0),
+                sr = Math.sin(a1);
+            var min = sl < sr ? sl : sr,
+                max = sl > sr ? sl : sr;
+            if (Math.ceil(l - 0.25) === Math.floor(r - 0.25)) {
+                max = 1;
+            }
+            if (Math.ceil(l + 0.25) === Math.floor(r + 0.25)) {
+                min = -1;
+            }
+            return [min, max];
+        }
+
+        function cos(a) {
+            var pi2l = 6.283185307179586,
+                pi2r = 6.283185307179587,
+                a0 = a[0],
+                a1 = a[1];
+            if (a1 - a0 >= pi2r) {
+                return [-1, 1];
+            }
+            var l = a0 / (a0 >= 0 ? pi2r : pi2l),
+                r = a1 / (a1 >= 0 ? pi2l : pi2r);
+            var cl = Math.cos(a0),
+                cr = Math.cos(a1);
+            var min = cl < cr ? cl : cr,
+                max = cl > cr ? cl : cr;
+            if (Math.ceil(l) === Math.floor(r)) {
+                max = 1;
+            }
+            if (Math.ceil(l + 0.5) === Math.floor(r + 0.5)) {
+                min = -1;
+            }
+            return [min, max];
+        }
+
+        function tan(a) {
+            var a0 = a[0], a1 = a[1];
+            if (a1 - a0 >= Math.PI) {
+                return [-Infinity, Infinity];
+            }
+            var l = a0 / Math.PI, r = a1 / Math.PI;
+            if (Math.ceil(l + 0.5) === Math.floor(r + 0.5)) {
+                return [-Infinity, Infinity];
+            }
+            return [Math.tan(a0), Math.tan(a1)];
+        }
+
+        function asin(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 < -1 ? -Infinity : Math.asin(a0), a1 > 1 ? Infinity : Math.asin(a1)];
+        }
+
+        function acos(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a1 > 1 ? -Infinity : Math.acos(a1), a0 < -1 ? Infinity : Math.acos(a0)];
+        }
+
+        function atan(a) {
+            return [Math.atan(a[0]), Math.atan(a[1])];
+        }
+
+        function sinh(a) {
+            return [Math.sinh(a[0]), Math.sinh(a[1])];
+        }
+
+        function cosh(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            if (a0 >= 0) {
+                return [Math.cosh(a0), Math.cosh(a1)];
+            }
+            if (a1 <= 0) {
+                return [Math.cosh(a1), Math.cosh(a0)];
+            }
+            return [1, Math.cosh(a1 > -a0 ? a1 : -a0)];
+        }
+
+        function tanh(a) {
+            return [Math.tanh(a[0]), Math.tanh(a[1])];
+        }
+
+        function asinh(a) {
+            return [Math.asinh(a[0]), Math.asinh(a[1])];
+        }
+
+        function acosh(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 < 1 ? -Infinity : Math.acosh(a0), a1 < 1 ? -Infinity : Math.acosh(a1)];
+        }
+
+        function atanh(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return [a0 > -1 ? a0 < 1 ? Math.atanh(a0) : Infinity : -Infinity, a1 < 1 ? a1 > -1 ? Math.atanh(a1) : -Infinity : Infinity];
+        }
+
+        function floor(a) {
+            return [Math.floor(a[0]), Math.floor(a[1])];
+        }
+
+        function ceil(a) {
+            return [Math.ceil(a[0]), Math.ceil(a[1])];
+        }
+
+        function round(a) {
+            return [Math.round(a[0]), Math.round(a[1])];
+        }
+
+        function trunc(a) {
+            return [Math.trunc(a[0]), Math.trunc(a[1])];
+        }
+
+        function addn(a, n) {
+            return [a[0] + n, a[1] + n];
+        }
+
+        function nmul(n, a) {
+            return n < 0 ? [a[1] * n, a[0] * n] : [a[0] * n, a[1] * n];
+        }
+
+        function overn(a, n) {
+            return n < 0 ? [a[1] / n, a[0] / n] : [a[0] / n, a[1] / n];
+        }
+
+        function lt(a, b) {
+            var a0 = a[0],
+                a1 = a[1],
+                b0 = b[0],
+                b1 = b[1];
+            return a1 < b0 ? 3 : b1 < a0 ? 0 : a0 === a1 && b0 === b1 ? 2 : 1;
+        }
+
+        function gt(a, b) {
+            var a0 = a[0],
+                a1 = a[1],
+                b0 = b[0],
+                b1 = b[1];
+            return a0 > b1 ? 3 : b0 > a1 ? 0 : a0 === a1 && b0 === b1 ? 2 : 1;
+        }
+
+        function eq(a, b) {
+            var a0 = a[0],
+                a1 = a[1],
+                b0 = b[0],
+                b1 = b[1];
+            return a0 > b1 ? 3 : b0 > a1 ? 0 : a0 === a1 && b0 === b1 ? 2 : 1;
+        }
+
+        function lt0(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return a1 < 0 ? 3 : a0 > 0 ? 0 : a0 === a1 ? 2 : 1;
+        }
+
+        function gt0(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return a0 > 0 ? 3 : a1 < 0 ? 0 : a0 === a1 ? 2 : 1;
+        }
+
+        function eq0(a) {
+            var a0 = a[0],
+                a1 = a[1];
+            return a0 > 0 ? 3 : a1 < 0 ? 0 : a0 === a1 ? 2 : 1;
+        }
+
+        function not(a) {
+            return a === 0 ? 3 : a === 3 ? 0 : a;
+        }
+
+        function and(a, b) {
+            return a === 2 || b === 2 ? 2 : a & b;
+        }
+
+        function or(a, b) {
+            return a === 2 || b === 2 ? 2 : a | b;
+        }
+
+        function xor(a, b) {
+            return a === 2 || b === 2 ? 2 : a === 1 || b === 1 ? 1 : a ^ b;
+        }
+
+        function multiAnd(arr) {
+            var l = arr.length,
+                res = 3;
+            for (var i = 0, k = 0; i < l && res; i++) {
+                k = arr[i];
+                if (k === 2) {
+                    return 2;
+                }
+                res &= k;
+            }
+            return res;
+        }
+
+        function multiOr(arr) {
+            var l = arr.length,
+                res = 0;
+            for (var i = 0, k = 0; i < l && res !== 3; i++) {
+                k = arr[i];
+                if (k === 2) {
+                    return 2;
+                }
+                res |= k;
+            }
+            return res;
+        }
+
+        function multiXor(arr) {
+            var l = arr.length,
+                res = 0;
+            for (var i = 0, k = 0; i < l; i++) {
+                k = arr[i];
+                if (k === 2) {
+                    return 2;
+                }
+                if (k === 1) {
+                    return 1;
+                }
+                res ^= k;
+            }
+            return res;
+        }
+
+        function refinePixels() {
+            var UnA = USet,
+                UnB = [];
+            var OX = Ox,
+                OY = Oy,
+                U = u;
+            var TCOLOR = TColor,
+                FCOLOR = FColor;
+            var res = 0,
+                z = 0,
+                x = 0,
+                y = 0,
+                dx = 0,
+                dy = 0,
+                dxm2 = 0,
+                dym2 = 0;
+            wr("RefinePixels: " + UnA.length);
+            for (var i = UnA.length; i > 0; i--) {
+                z = UnA.pop();
+                x = (z << 8) >>> 8;
+                dx = (z - x) / 16777216;
+                dy = (dx << 20) >>> 20;
+                y = (x << 20) >>> 20;
+                x >>>= 12;
+                dx >>>= 12;
+                res = r([(x - OX) / U, (x + dx - OX) / U], [(OY - y - dy) / U, (OY - y) / U]);
+
+                if (res === 0) {
+                    ctx.fillStyle = FCOLOR;
+                    ctx.fillRect(x, y, dx, dy);
+                    continue;
+                }
+                if (res === 3) {
+                    ctx.fillStyle = TCOLOR;
+                    ctx.fillRect(x, y, dx, dy);
+                    continue;
+                }
+                if (dx !== 1 && dy !== 1) {
+                    dxm2 = dx & 1;
+                    dym2 = dy & 1;
+                    dx >>>= 1;
+                    dy >>>= 1;
+                    UnB.push(((dx << 12) + dy) * 16777216 + (x << 12) + y);
+                    UnB.push((((dx + dxm2) << 12) + dy) * 16777216 + ((x + dx) << 12) + y);
+                    UnB.push(((dx << 12) + dy + dym2) * 16777216 + (x << 12) + y + dy);
+                    UnB.push((((dx + dxm2) << 12) + dy + dym2) * 16777216 + ((x + dx) << 12) + y + dy);
+                    continue;
+                }
+                if (dx !== 1) {
+                    dxm2 = dx & 1;
+                    dx >>>= 1;
+                    UnB.push(((dx << 12) + 1) * 16777216 + (x << 12) + y);
+                    UnB.push((((dx + dxm2) << 12) + 1) * 16777216 + ((x + dx) << 12) + y);
+                    continue;
+                }
+                if (dy !== 1) {
+                    dym2 = dy & 1;
+                    dy >>>= 1;
+                    UnB.push((4096 + dy) * 16777216 + (x << 12) + y);
+                    UnB.push((4096 + dy + dym2) * 16777216 + (x << 12) + y + dy);
+                    continue;
+                }
+                UnB.push(z);
+            }
+
+            N--;
+            USet = UnB;
+        }
+
+        function refineLastPixels() {
+            var UnA = USet,
+                UnB = [];
+            var OX = Ox,
+                OY = Oy,
+                U = u;
+            var TCOLOR = TColor,
+                FCOLOR = FColor;
+            var res = 0,
+                z = 0,
+                x = 0,
+                y = 0,
+                dx = 0,
+                dy = 0;
+            wr("RefineLastPixels: " + UnA.length);
+            for (var i = UnA.length; i > 0; i--) {
+                dx = UnA.pop();
+                z = (dx << 8) >>> 8;
+                dx = (dx - z) / 16777216;
+                dy = (dx << 20) >>> 20;
+                y = (z << 20) >>> 20;
+                x = z >>> 12;
+                dx >>>= 12;
+                res = r([(x - OX) / U, (x + dx - OX) / U], [(OY - y - dy) / U, (OY - y) / U]);
+
+                if (res === 0) {
+                    ctx.fillStyle = FCOLOR;
+                    ctx.fillRect(x, y, dx, dy);
+                    continue;
+                }
+                if (res === 3) {
+                    ctx.fillStyle = TCOLOR;
+                    ctx.fillRect(x, y, dx, dy);
+                    continue;
+                }
+                if (dx !== 1 && dy !== 1) {
+                    UnB.push(z);
+                    UnB.push(z + 4096);
+                    UnB.push(z + 1);
+                    UnB.push(z + 4097);
+                    continue;
+                }
+                if (dx !== 1) {
+                    UnB.push(z);
+                    UnB.push(z + 4096);
+                    continue;
+                }
+                if (dy !== 1) {
+                    UnB.push(z);
+                    UnB.push(z + 1);
+                    continue;
+                }
+                UnB.push(z);
+            }
+            N--;
+            USet = UnB;
+        }
+
+        function refineSubpixels() {
+            var UnA = USet,
+                UnB = [];
+            var OX = Ox,
+                OY = Oy,
+                U = u;
+            var TCOLOR = TColor,
+                FCOLOR = FColor,
+                ZCOLOR = ZColor;
+            var res = 0,
+                resP = 0,
+                z = 0,
+                x = 0,
+                y = 0,
+                f = Math.pow(2, -N),
+                bj2 = 0,
+                bk2 = 0,
+                bj1 = 0,
+                bk1 = 0,
+                bk3 = 0,
+                resT = false,
+                resF = false,
+                resU = false,
+                exG = false,
+                exL = false;
+            var f1 = 1 / f;
+            wr("RefineSubpixels: " + UnA.length + " * " + f + "^2");
+            for (var i = UnA.length; i > 0; i--) {
+                z = UnA.pop();
+                x = z >>> 12;
+                y = (z << 20) >>> 20;
+                resT = false;
+                resF = false;
+                resU = false;
+                exG = false;
+                exL = false;
+                bj2 = (x + 1 - OX) / U;
+                bk3 = (OY - y - 1) / U;
+                for (var j = f - 1; j >= 0; j--) {
+                    bj1 = (x + f1 * j - OX) / U;
+                    bk2 = bk3;
+                    for (var k = f - 1; k >= 0; k--) {
+                        bk1 = (OY - y - f1 * k) / U;
+                        res = r([bj1, bj2], [bk2, bk1]);
+                        if (res === 1) {
+                            resU = true;
+                        }
+                        if (res === 3) {
+                            resT = true;
+                        }
+                        if (res === 0) {
+                            resF = true;
+                        }
+                        resP = r([bj2, bj2], [bk2, bk2]);
+                        if ((resP & 2) === 2) {
+                            exG = true;
+                        }
+                        if ((resP | 2) === 2) {
+                            exL = true;
+                        }
+                        bk2 = bk1;
+                    }
+                    resP = r([bj2, bj2], [bk2, bk2]);
+                    if ((resP & 2) === 2) {
+                        exG = true;
+                    }
+                    if ((resP | 2) === 2) {
+                        exL = true;
+                    }
+                    bj2 = bj1;
+                    if (resT && resF || (exG && exL)) {
+                        break;
+                    }
+                }
+
+                resP = r([bj2, bj2], [bk2, bk2]);
+                if ((resP & 2) === 2) {
+                    exG = true;
+                }
+                if ((resP | 2) === 2) {
+                    exL = true;
+                }
+
+                if (resT && resF || (exG && exL)) {
+                    ctx.fillStyle = ZCOLOR;
+                    ctx.fillRect(x, y, 1, 1);
+                    continue;
+                }
+
+                for (k = f; k > 0; k--) {
+                    bk2 = (OY - y - f1 * k) / U;
+                    resP = r([bj2, bj2], [bk2, bk2]);
+                    if ((resP & 2) === 2) {
+                        exG = true;
+                    }
+                    if ((resP | 2) === 2) {
+                        exL = true;
+                    }
+                }
+
+                if (exG && exL) {
+                    ctx.fillStyle = ZCOLOR;
+                    ctx.fillRect(x, y, 1, 1);
+                    continue;
+                }
+
+                if (resF && !resU) {
+                    ctx.fillStyle = FCOLOR;
+                    ctx.fillRect(x, y, 1, 1);
+                    continue;
+                }
+                if (resT && !resU) {
+                    ctx.fillStyle = TCOLOR;
+                    ctx.fillRect(x, y, 1, 1);
+                    continue;
+                }
+                UnB.push(z);
+            }
+            N--;
+            USet = UnB;
+        }
+
+        function refinePixelsEq() {
+            var UnA = USet,
+                UnB = [];
+            var OX = Ox,
+                OY = Oy,
+                U = u;
+            var BCOLOR = BColor;
+            var res = 0,
+                z = 0,
+                x = 0,
+                y = 0,
+                dx = 0,
+                dy = 0,
+                dxm2 = 0,
+                dym2 = 0;
+            wr("RefinePixelsEq: " + UnA.length);
+            for (var i = UnA.length; i > 0; i--) {
+                z = UnA.pop();
+                x = (z << 8) >>> 8;
+                dx = (z - x) / 16777216;
+                dy = (dx << 20) >>> 20;
+                y = (x << 20) >>> 20;
+                x >>>= 12;
+                dx >>>= 12;
+                res = r([(x - OX) / U, (x + dx - OX) / U], [(OY - y - dy) / U, (OY - y) / U]);
+
+                if (res !== 1) {
+                    ctx.fillStyle = BCOLOR;
+                    ctx.fillRect(x, y, dx, dy);
+                    continue;
+                }
+                if (dx !== 1 && dy !== 1) {
+                    dxm2 = dx & 1;
+                    dym2 = dy & 1;
+                    dx >>>= 1;
+                    dy >>>= 1;
+                    UnB.push(((dx << 12) + dy) * 16777216 + (x << 12) + y);
+                    UnB.push((((dx + dxm2) << 12) + dy) * 16777216 + ((x + dx) << 12) + y);
+                    UnB.push(((dx << 12) + dy + dym2) * 16777216 + (x << 12) + y + dy);
+                    UnB.push((((dx + dxm2) << 12) + dy + dym2) * 16777216 + ((x + dx) << 12) + y + dy);
+                    continue;
+                }
+                if (dx !== 1) {
+                    dxm2 = dx & 1;
+                    dx >>>= 1;
+                    UnB.push(((dx << 12) + 1) * 16777216 + (x << 12) + y);
+                    UnB.push((((dx + dxm2) << 12) + 1) * 16777216 + ((x + dx) << 12) + y);
+                    continue;
+                }
+                if (dy !== 1) {
+                    dym2 = dy & 1;
+                    dy >>>= 1;
+                    UnB.push((4096 + dy) * 16777216 + (x << 12) + y);
+                    UnB.push((4096 + dy + dym2) * 16777216 + (x << 12) + y + dy);
+                    continue;
+                }
+                UnB.push(z);
+            }
+
+            N--;
+            USet = UnB;
+        }
+
+        function refineLastPixelsEq() {
+            var UnA = USet,
+                UnB = [];
+            var OX = Ox,
+                OY = Oy,
+                U = u;
+            var BCOLOR = BColor;
+            var res = 0,
+                z = 0,
+                x = 0,
+                y = 0,
+                dx = 0,
+                dy = 0;
+            wr("RefineLastPixelsEq: " + UnA.length);
+            for (var i = UnA.length; i > 0; i--) {
+                dx = UnA.pop();
+                z = (dx << 8) >>> 8;
+                dx = (dx - z) / 16777216;
+                dy = (dx << 20) >>> 20;
+                y = (z << 20) >>> 20;
+                x = z >>> 12;
+                dx >>>= 12;
+                res = r([(x - OX) / U, (x + dx - OX) / U], [(OY - y - dy) / U, (OY - y) / U]);
+
+                if (res !== 1) {
+                    ctx.fillStyle = BCOLOR;
+                    ctx.fillRect(x, y, dx, dy);
+                    continue;
+                }
+                if (dx !== 1 && dy !== 1) {
+                    UnB.push(z);
+                    UnB.push(z + 4096);
+                    UnB.push(z + 1);
+                    UnB.push(z + 4097);
+                    continue;
+                }
+                if (dx !== 1) {
+                    UnB.push(z);
+                    UnB.push(z + 4096);
+                    continue;
+                }
+                if (dy !== 1) {
+                    UnB.push(z);
+                    UnB.push(z + 1);
+                    continue;
+                }
+                UnB.push(z);
+            }
+            N--;
+            USet = UnB;
+        }
+
+        function refineSubpixelsEq() {
+            var UnA = USet,
+                UnB = [];
+            var OX = Ox,
+                OY = Oy,
+                U = u;
+            var LCOLOR = LColor,
+                BCOLOR = BColor;
+            var res = 0,
+                resP = 0,
+                z = 0,
+                x = 0,
+                y = 0,
+                f = Math.pow(2, -N),
+                bj2 = 0,
+                bk2 = 0,
+                bj1 = 0,
+                bk1 = 0,
+                bk3 = 0,
+                resT = false,
+                resF = false,
+                resU = false,
+                exG = false,
+                exL = false;
+            var f1 = 1 / f;
+            wr("RefineSubpixelsEq: " + UnA.length + " * " + f + "^2");
+            for (var i = UnA.length; i > 0; i--) {
+                z = UnA.pop();
+                x = z >>> 12;
+                y = (z << 20) >>> 20;
+                resT = false;
+                resF = false;
+                resU = false;
+                exG = false;
+                exL = false;
+                bj2 = (x + 1 - OX) / U;
+                bk3 = (OY - y - 1) / U;
+                for (var j = f - 1; j >= 0; j--) {
+                    bj1 = (x + f1 * j - OX) / U;
+                    bk2 = bk3;
+                    for (var k = f - 1; k >= 0; k--) {
+                        bk1 = (OY - y - f1 * k) / U;
+                        res = r([bj1, bj2], [bk2, bk1]);
+                        if (res === 1) {
+                            resU = true;
+                        }
+                        if (res === 3) {
+                            resT = true;
+                        }
+                        if (res === 0) {
+                            resF = true;
+                        }
+                        resP = r([bj2, bj2], [bk2, bk2]);
+                        if ((resP & 2) === 2) {
+                            exG = true;
+                        }
+                        if ((resP | 2) === 2) {
+                            exL = true;
+                        }
+                        bk2 = bk1;
+                    }
+                    resP = r([bj2, bj2], [bk2, bk2]);
+                    if ((resP & 2) === 2) {
+                        exG = true;
+                    }
+                    if ((resP | 2) === 2) {
+                        exL = true;
+                    }
+                    bj2 = bj1;
+                    if (resT && resF || (exG && exL)) {
+                        break;
+                    }
+                }
+
+                resP = r([bj2, bj2], [bk2, bk2]);
+                if ((resP & 2) === 2) {
+                    exG = true;
+                }
+                if ((resP | 2) === 2) {
+                    exL = true;
+                }
+
+                if (resT && resF || (exG && exL)) {
+                    ctx.fillStyle = LCOLOR;
+                    ctx.fillRect(x, y, 1, 1);
+                    continue;
+                }
+
+                for (k = f; k > 0; k--) {
+                    bk2 = (OY - y - f1 * k) / U;
+                    resP = r([bj2, bj2], [bk2, bk2]);
+                    if ((resP & 2) === 2) {
+                        exG = true;
+                    }
+                    if ((resP | 2) === 2) {
+                        exL = true;
+                    }
+                }
+
+                if (exG && exL) {
+                    ctx.fillStyle = LCOLOR;
+                    ctx.fillRect(x, y, 1, 1);
+                    continue;
+                }
+
+                if (!resU) {
+                    ctx.fillStyle = BCOLOR;
+                    ctx.fillRect(x, y, 1, 1);
+                    continue;
+                }
+                UnB.push(z);
+            }
+            N--;
+            USet = UnB;
+        }
+
+        function graf() {
+            if (N > 1) {
+                refinePixels();
+            } else if (N === 1) {
+                refineLastPixels();
+            } else {
+                refineSubpixels();
+            }
+            if (USet.length === 0) {
+                wr("Graph Finished");
+                return 0;
+            }
+            if (N + divideLimit === 0) {
+                wr("Divide Limit Reached");
+                return 0;
+            }
+            if (GOON) {
+                setTimeout(function () {
+                    graf();
+                }, 1000);
+                return 0;
+            }
+            if (N <= 0) {
+                wr("STOPPED AT: " + USet.length + " * " + Math.pow(2, -N) + "^2");
+            } else {
+                wr("STOPPED AT: " + USet.length);
+            }
+        }
+
+        function grafEq() {
+            if (N > 1) {
+                refinePixelsEq();
+            } else if (N === 1) {
+                refineLastPixelsEq();
+            } else {
+                refineSubpixelsEq();
+            }
+            if (USet.length === 0) {
+                wr("Graph Finished");
+                return 0;
+            }
+            if (N + divideLimit === 0) {
+                wr("Divide Limit Reached");
+                return 0;
+            }
+            if (GOON) {
+                setTimeout(function () {
+                    grafEq();
+                }, 1000);
+                return 0;
+            }
+            if (N <= 0) {
+                wr("STOPPED AT: " + USet.length + " * " + Math.pow(2, -N) + "^2");
+            } else {
+                wr("STOPPED AT: " + USet.length);
+            }
+        }
+
+        function Grid(c, Ox, Oy, u, w, clr) {
+            c.save();
+            c.lineCap = "square";
+            c.lineWidth = w;
+            c.strokeStyle = clr;
+            c.beginPath();
+            for (var n = Ox; n >= 0; n -= u) {
+                c.moveTo(n, 0);
+                c.lineTo(n, 1024);
+            }
+            for (n = Ox; n <= 1024; n += u) {
+                c.moveTo(n, 0);
+                c.lineTo(n, 1024);
+            }
+            for (n = Oy; n >= 0; n -= u) {
+                c.moveTo(0, n);
+                c.lineTo(1024, n);
+            }
+            for (n = Oy; n <= 1024; n += u) {
+                c.moveTo(0, n);
+                c.lineTo(1024, n);
+            }
+            c.stroke();
+            c.closePath();
+            c.restore();
+        }
+
+        function prtGrid(evt) {
+            Grid(ctx, Ox, Oy, u, 2, "#0000ff");
+            Grid(ctx, Ox, Oy, 1024, 2, "#00ff00");
+            evt.target.style.border = "2px solid #808080";
+            evt.target.style.background = "#808080";
+            setTimeout(function () {
+                evt.target.style.border = "2px solid #00ff00";
+                evt.target.style.background = "#000000";
+            }, 1000);
+        }
+
+        function fact(n) {
+            var f = [1],
+                l = 1,
+                z = 0,
+                t = 0;
+            for (var i = 2; i <= n; i++) {
+                for (var k = 0; k < l; k++) {
+                    z = f[k] * i + z / 10000000;
+                    t = z % 10000000;
+                    f[k] = t;
+                    z -= t;
+                }
+                if (z) {
+                    f.push(z / 10000000);
+                    l++;
+                    z = 0;
+                }
+            }
+            var s = f[l - 1] + "";
+            for (var k = l - 2; k >= 0; k--) {
+                s += f[k] > 999999 ? f[k] : ("000000" + f[k]).slice(-7);
+            }
+            return s;
+        }
+
+        document.getElementById("ck").addEventListener("click", function (evt) {
+            if (cked) {
+                grd.style.visibility = "hidden";
+                evt.target.style.background = "#000000";
+                evt.target.style.color = "#ffffff";
+                cked = false;
+            } else {
+                grd.style.visibility = "visible";
+                evt.target.style.background = "#ffffff";
+                evt.target.style.color = "#000000";
+                cked = true;
+            }
+        });
+
+        document.getElementById("sp").addEventListener("click", function (evt) {
+            if (GOON) {
+                GOON = false;
+                evt.target.innerHTML = "STOPPING";
+                evt.target.innerHTML = "RESTART";
+            } else {
+                GOON = true;
+                evt.target.innerHTML = "STOP";
+                func();
+            }
+        });
+
+        document.getElementById("toDataURL").addEventListener("click", function (evt) {
+            window.open(cvs.toDataURL("image/png", 1));
+        }, false);
+
+        document.getElementById("toBlob").addEventListener("click", function (evt) {
+            cvs.toBlob(function (blob) {
+                window.open(URL.createObjectURL(blob));
+            }, "image/png");
+        }, false);
+
+        document.getElementById("bggd").addEventListener("click", prtGrid, false);
+
+        document.getElementById("next").addEventListener("click", function (evt) {
+            evt.target.style.border = "2px solid #808080";
+            evt.target.style.background = "#808080";
+            setTimeout(function () {
+                evt.target.style.border = "2px solid #0000ff";
+                evt.target.style.background = "#000000";
+            }, 1000);
+            func();
+        }, false);
+
+        //var d=(new Date()).getTime();
+        /**
+        var arr=[],res=[];
+        for(var i=-4;i<=4;i++){
+        for(var j=-4;j<=4;j++){
+        if(i<=j){arr.push([i,j]);}
+        }
+        }
+
+        for(var i=0;i<45;i++){
+        for(var j=0;j<45;j++){
+        res.push("["+arr[i]+"]*["+arr[j]+"]=["+mul(arr[i],arr[j])+"]<br>");
+        }
+        }
+        **/
+        /**
+        var arr=[],t=0;
+        for(var i=0;i<4000000;i++){
+        t=i%40000;
+        arr.push([t,t+1]);
+        }
+        var l=arr.length,z,A=0,B=0,brr=[];
+        for(i=0;i<l;i++){
+        z=arr[i];
+        A=z[0];
+        B=z[1];
+        brr.push([A+3,B+7]);
+        }
+        **/
+        /**
+        var arr=[],t=0;
+        for(var i=0;i<4000000;i++){
+        t=i%40000;
+        arr.push((t<<16)+t+1);
+        }
+        var l=arr.length,A=0,B=0,brr=[];
+        for(i=0;i<l;i++){
+        A=arr[i];
+        B=(A<<16)>>>16;
+        A>>>=16;
+        brr.push(((A+3)<<16)+B+7);
+        }
+        **/
+        /**
+        var arr=[],t=0;
+        for(var i=0;i<4000000;i++){
+        t=(i<<17)>>>17;
+        arr.push([t,t+1,t+2,t+3]);
+        }
+        var l=arr.length,z,A=0,B=0,C=0,D=0,brr=[];
+        for(i=0;i<l;i++){
+        z=arr[i];
+        A=z[0];
+        B=z[1];
+        C=z[2];
+        D=z[3];
+        brr.push([A,B+3,C+6,D+9]);
+        }
+        **/
+        /**
+        var arr=[],t=0;
+        for(var i=0;i<4000000;i++){
+        t=(i<<17)>>>17;
+        arr.push(((t<<12)+t+1)*16777216+((t+2)<<12)+t+3);
+        }
+        var l=arr.length,A=0,B=0,C=0,D=0,brr=[];
+        for(i=0;i<l;i++){
+        A=arr[i];
+        C=(A<<8)>>>8;
+        A=(A-C)/16777216;
+        D=(C<<20)>>>20;
+        B=(A<<20)>>>20;
+        A>>>=12;
+        C>>>=12;
+        brr.push(((A<<12)+B+3)*16777216+((C+6)<<12)+D+9);
+        }
+        **/
+        //alert((new Date()).getTime()-d);
+
+        /************
+        0.5*pi=[1.5707963267948966,1.5707963267948968];
+        pi=[3.141592653589793,3.1415926535897936];
+        1.5*pi=[4.712388980384689,4.712388980384690];
+        2*pi=[6.283185307179586,6.283185307179587];
+        e=[2.718281828459045,2.7182818284590455];
+        ln2=[0.6931471805599453,0.6931471805599454];
+        log2e=[1.4426950408889634,1.4426950408889636];
+        ln10=[2.3025850929940455,2.302585092994046];
+        log10e=[0.4342944819032518,0.43429448190325187];
+        w1=[0.5671432904097838,0.5671432904097840];
+        gamma=[0.5772156649015328,0.5772156649015329];
+        C=[1.7810724179901978,1.781072417990198];
+
+        functions:
+
+        add(a, b) sub(a, b) mul(a, b) div(a, b) min(a, b) max(a, b)
+        neg(a) inv(a) abs(a)
+        sq(a) cb(a) powN(a, n)
+        sqrt(a) cbrt(a) rootN(a, n) powQ(a, numer, denom) pow(a, p)
+        hypot(a, b)
+        exp(a) expm1(a) bexp(base, a)
+        log(a) log2(a) log10(a) log1p(a)
+        sin(a) cos(a) tan(a) asin(a) acos(a) atan(a)
+        sinh(a) cosh(a) tanh(a) asinh(a) acosh(a) atanh(a)
+        floor(a) ceil(a) round(a) trunc(a)
+        addn(a, n) nmul(n, a) overn(a, n)
+        lt(a, b) gt(a, b) eq(a, b) lt0(a) gt0(a) eq0(a)
+        not(a) and(a, b) or(a, b) xor(a, b) multiAnd(arr) multiOr(arr) multiXor(arr)
+        ************/
+
+        /**
+        Ox=512;
+        Oy=512;
+        u=128;
+        r=function(x,y){
+        var x2=mul(x,x),y2=mul(y,y);
+        var r2=add(x2,y2);
+        return gt(sub(mul(r2,r2),mul([8,8],sub(x2,y2))),[17,17]);
+        };
+        Grid(ctx1,512,512,128,2,"#0000ff");
+        **/
+
+        //r=(x,y)=>(eq(exp(add(sin(x),cos(y))),sin(exp(add(x,y)))));
+        //2044 64
+
+        //r=(x,y)=>(eq(exp(add(sin(x),cos(y))),add(mul(x,sin(x)),mul(y,cos(y)))));
+
+        //r=(x,y)=>(eq(sin(sin(add(cos(x),sin(y)))),cos(cos(add(mul(x,sin(x)),mul(y,cos(y)))))));
+
+        //r=(x,y)=>(eq(cos(add(x,y)),add(cos(x),cos(y))));
+
+        /*
+        r=(x,y)=>{
+        var x2=sq(x),y2=sq(y);
+        return eq(sq(add(x2,y2)),mul([18,18],sub(x2,y2)));
+        };
+        */
+
+        //r=(x,y)=>(eq(add(sq(cb(x)),sq(cb(y))),[128,128]));
+
+        //r=(x,y)=>(gt(abs(x),abs(y)));
+
+        //r=(x,y)=>(eq0(add(add(sq(x),sq(y)),cb(y))));
+
+        //r=(x,y)=>(eq0(add(exp(sin(x)),cos(exp(abs(y))))));
+
+        //r=(x,y)=>(gt(mul(x,log(y)),mul(y,log(x))));
+
+        //r=((x,y)=>(eq(mul(x,cos(y)),mul(y,cos(x)))));
+
+        //r=((x,y)=>(eq(mul(x,sin(mul([8,8],log(hypot(x,y))))),mul(y,cos(mul([8,8],log(hypot(x,y))))))));
+
+        //r=(x,y)=>eq(add(sq(x),sq(y)),[16,16]);
+
+        //r=(x,y)=>eq0(add(add(sq(x),sq(y)),cb(y)));
+        /**
+        u = 256;
+        Ox = 512;
+        Oy = 512;
+        //r=(x,y)=>gt(sin(mul(add(x,sin(y)),add(sin(x),y))),cos(sin(mul(add(sin(x),cos(y)),add(cos(x),sin(y))))));
+
+        r = function(x, y) {
+            var sx = sin(x),
+                sy = sin(y),
+                cx = cos(x),
+                cy = cos(y);
+            var xps = add(x, sy),
+                xms = sub(x, sy),
+                yps = add(sx, y),
+                yms = sub(sx, y);
+            var sxpcy = add(sx, cy),
+                sxmcy = sub(sx, cy),
+                sypcx = add(sy, cx),
+                symcx = sub(sy, cx);
+            var l0 = sin(mul(xps, yps)),
+                l1 = sin(mul(xps, yms)),
+                l2 = sin(mul(xms, yps)),
+                l3 = sin(mul(xms, yms)),
+                r0 = cos(sin(mul(sxpcy, sypcx))),
+                r1 = cos(sin(mul(sxpcy, symcx))),
+                r2 = cos(sin(mul(sxmcy, sypcx))),
+                r3 = cos(sin(mul(sxmcy, symcx)));
+            // return eq0(mul(mul(mul(mul(sub(l0, r0), sub(l0, r1)), mul(sub(l0, r2), sub(l0, r3))), mul(mul(sub(l1, r0), sub(l1, r1)), mul(sub(l1, r2), sub(l1, r3)))), mul(mul(mul(sub(l2, r0), sub(l2, r1)), mul(sub(l2, r2), sub(l2, r3))), mul(mul(sub(l3, r0), sub(l3, r1)), mul(sub(l3, r2), sub(l3, r3))))));
+            return multiXor([eq(l0, r0), eq(l0, r1), eq(l0, r2), eq(l0, r3), eq(l1, r0), eq(l1, r1), eq(l1, r2), eq(l1, r3), eq(l2, r0), eq(l2, r1), eq(l2, r2), eq(l2, r3), eq(l3, r0), eq(l3, r1), eq(l3, r2), eq(l3, r3)]);
+        };
+        //sin (x+-siny)(sinx+-y)=cos sin (sinx+-cosy)(siny+-cosx);
+        //4,6.5 * 2,4.5
+        **/
+
+        //r=(x,y)=>eq(max(abs(mul([2,2],x)),abs(add(x,y))),[2,2]);
+        /**
+        r=function(x,y){
+        var xy=mul(x,y);
+        var cx=cos(x),cy=cos(y),cxy=cos(xy);
+        var t0=mul(x,mul(cy,cxy)),t1=mul(y,mul(cx,cxy)),t2=mul(xy,mul(cx,cy));
+        return eq0(mul(mul(add(t0,add(t1,t2)),add(t0,sub(t1,t2))),mul(sub(t0,add(t1,t2)),sub(t0,sub(t1,t2)))));
+        }
+        **/
+
+        //r=(x,y)=>eq(sin(cos(mul(x,y))),cos(sin(add(sin(x),cos(y)))));
+
+        //r=(x,y)=>eq(sin(mul(sq(x),y)),cos(mul(x,sq(y))));
+
+        //r=(x,y)=>(gt(add(mul([2,2],x),y),[4,4])&gt(sub(x,y),[-2,-2])&lt(sub(mul([3,3],x),y),[3,3]));
+
+        function square(x, y, a, b, c, d, e, f) {
+            var det = a * d - b * c;
+            var X = overn(addn(add(nmul(d, x), nmul(-c, y)), c * f - d * e), det),
+                Y = overn(addn(add(nmul(-b, x), nmul(a, y)), b * e - a * f), det);
+            return addn(max(abs(X), abs(Y)), -1);
+        }
+
+        function diamond(x, y, a, b, c, d, e, f) {
+            var det = a * d - b * c;
+            var X = overn(addn(add(nmul(d, x), nmul(-c, y)), c * f - d * e), det),
+                Y = overn(addn(add(nmul(-b, x), nmul(a, y)), b * e - a * f), det);
+            return addn(add(abs(X), abs(Y)), -1);
+        }
+
+        function trans(rel, x, y, a, b, c, d, e, f) {
+            var det = a * d - b * c;
+            var X = overn(addn(add(nmul(d, x), nmul(-c, y)), c * f - d * e), det),
+                Y = overn(addn(add(nmul(-b, x), nmul(a, y)), b * e - a * f), det);
+            return rel(X, Y);
+        }
+
+        //r=(x,y)=>eq0(square(x,y,4,1,2,5,0,0));
+
+        //r=(x,y)=>eq(sin(add(x,y)),mul(sin(x),sin(y)));
+        /**
+        var sqrt_30=Math.sqrt(30);
+        u=64;
+        ZColor="#ffffff";
+        UColor="#000000";
+        r=function (x,y){
+        var ftx=nmul(50,x),fty=nmul(50,y);
+        var l0=hypot(addn(x,4),addn(y,-3)),r0=nmul(3.75,addn(sub(cos(fty),sin(ftx)),1));
+        var l1=addn(sub(cos(ftx),sin(fty)),-0.6),r1=nmul(4/Math.PI,atan(nmul(6,addn(hypot(overn(addn(x,-1),sqrt_30),overn(addn(y,1),3)),-1))));
+        var circ=addn(hypot(addn(x,1),addn(y,-1)),-5);
+        return (gt(l0,r0)&lt0(circ))|(gt(l1,r1)&gt0(circ));
+        }
+        **/
+        /**
+        u=128;
+
+        //r=((x,y)=>(eq(sub(sq(sq(x)),sq(sq(y))),mul(x,y))));
+
+        function ellip(x,y,a,b){
+        var sqx=sq(x);
+        return eq(sq(y),add(mul(sqx,x),add(nmul(a,sqx),nmul(b,x))));
+        }
+
+        r=(x,y)=>ellip(x,y,1,-2);
+        **/
+
+        u = 64;
+
+        // r = function (x, y) {
+        //     var sx = sin(x),
+        //         cx = cos(x),
+        //         sy = sin(y),
+        //         cy = cos(y),
+        //         nx = neg(x),
+        //         ny = neg(y);
+        //     return multiXor([eq(x, sy), eq(x, cy), eq(sx, y), eq(cx, y), eq(nx, sy), eq(nx, cy), eq(sx, ny), eq(cx, ny)]);
+        // }
+
+        // r = (x, y) => {
+        //     var xdcx = div(x, cos(x)),
+        //         ydcy = div(y, cos(y)),
+        //         xy = mul(x, y),
+        //         xydcxy = div(xy, cos(xy));
+        //     return multiXor([eq(add(xdcx, ydcy), xydcxy), eq(sub(xdcx, ydcy), xydcxy), eq(sub(ydcy, xdcx), xydcxy), eq(add(xdcx, ydcy), neg(xydcxy))]);
+        // }
+
+        // r = (x, y) => multiXor([eq0(square(x, y, 2, 1, 0, 1, 4, 4)), eq0(square(x, y, 1, 1, -1, 1, -4, 4)), eq0(square(x, y, 1, 1, -1, 1, -4, -4)), eq0(square(x, y, 1, 3, -1, -2, 4, -4))]);
+
+        r=(x,y)=>{
+            const PI_OVER_2=[1.5707963267948966,1.5707963267948968];
+            var fy=floor(y);
+            var a=sub(mul(bexp(2,fy),x),PI_OVER_2),b=nmul(Math.PI/4,sub(y,fy));
+            return xor(eq0(sin(add(a,b))),eq0(sin(sub(a,b))));
+        }
+
+        func = grafEq;
+
+        ctx1.clearRect(0, 0, 1024, 1024);
+        Grid(ctx1, Ox, Oy, u, 2, "#0000ff");
+        Grid(ctx1, Ox, Oy, 1024, 2, "#00ff00");
+
+        region(1024, 1024, 0, 0);
+        func();
+    </script>
+</body>
+
+</html>

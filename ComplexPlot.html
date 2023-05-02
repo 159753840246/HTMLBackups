@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="theme-color" content="#000000"/>
+        <title>Complex Plot</title>
+        <style type="text/css">
+            body{
+                background: #000000;
+                overflow: hidden;
+                overscroll-behavior: none;
+            }
+            canvas{
+                display: block;
+                border: none;
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                visibility: visible;
+            }
+            #divControlPanel{
+                border: none;
+                background: none;
+                position: absolute;
+                left: 20%;
+                top: 8px;
+                width: 60%;
+                height: 50%;
+                overflow: visible;
+            }
+            #textareaInputCode{
+                border: none;
+                background: #000000c0;
+                color: #ffffff;
+                font-size: 24px;
+                font-family: 'Courier New', Courier, monospace;
+                text-align: left;
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                width: 100%;
+                height: 88%;
+                overflow-y: scroll;
+                visibility: inherit;
+                resize: none;
+            }
+            .divButton{
+                border: 2px solid #ff7f00;
+                background: #00c000c0;
+                color: #ffffff;
+                font-size: 32px;
+                font-family: 'Times New Roman', Times, serif;
+                text-align: center;
+                position: absolute;
+                top: 90%;
+                width: 33%;
+                height: auto;
+                cursor: pointer;
+                visibility: inherit;
+            }
+            #divButtonGrid{
+                left: 0%;
+            }
+            #divButtonSave{
+                left: 33.5%;
+            }
+            #divButtonRun{
+                left: 67%;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="cvsWebGL2"></canvas>
+        <canvas id="cvs2D"></canvas>
+        <div id="divControlPanel">
+            <textarea id="textareaInputCode" autocomplete="off" spellcheck="false">fz=(z)=&gt;z;
+// fz=(z)=&gt;sq(z);
+// fz=(z)=&gt;asin(z);
+// fz=(z)=&gt;exp(recip(z));
+// fz=(z)=&gt;{var z2=sq(z);return div(addRe(z2,-1),addRe(z2,1));}
+// fz=(z)=&gt;{var z2=sq(z);return div(addRe(sq(z2),-1),z2);}
+// fz=(z)=&gt;{var z3=cb(z);return div(addRe(mul(z3,sq(z)),-3),z3);}
+// fz=(z)=&gt;recip(powN(addRe(add(sq(z),z),1),50));
+// fz=(z)=&gt;addRe(sq(sq(z)),156.25);
+
+// z2-1_z-2-i_z-2-i_d_z2+2+2i
+/******
+fz=(z)=&gt;{
+    var z2=sq(z);
+    return div(mul(addRe(z2,-1),sq(sub(z,[2,1]))),add(z2,[2,2]));
+}
+******/
+
+/******
+fz=(z)=&gt;{
+    var z2=sq(z),t=[0,12.5];
+    return div(sub(z2,t),add(z2,t));
+}
+******/
+
+/******
+colorFunction=(z,k)=&gt;{
+    var re=z[0],im=z[1],
+        h=Math.atan2(im,re)*3/Math.PI,s=1,l=Math.log2(Math.hypot(re,im));
+    l=(l-Math.floor(l))*0.5;
+    var c=s*Math.min(l,1-l);
+    var max=l+c,min=l-c;
+    c*=2;
+    if(h&lt;0){
+        if(h&gt;=-1){
+            colorImage[k]=max;
+            colorImage[k+1]=min;
+            colorImage[k+2]=min-h*c;
+            return;
+        }
+        if(h&gt;=-2){
+            colorImage[k]=(h+2)*c+min;
+            colorImage[k+1]=min;
+            colorImage[k+2]=max;
+            return;
+        }
+        colorImage[k]=min;
+        colorImage[k+1]=min-(h+2)*c;
+        colorImage[k+2]=max;
+        return;
+    }
+    if(h&lt;=1){
+        colorImage[k]=max;
+        colorImage[k+1]=h*c+min;
+        colorImage[k+2]=min;
+        return;
+    }
+    if(h&lt;=2){
+        colorImage[k]=(2-h)*c+min;
+        colorImage[k+1]=max;
+        colorImage[k+2]=min;
+        return;
+    }
+    colorImage[k]=min;
+    colorImage[k+1]=max;
+    colorImage[k+2]=(h-2)*c+min;
+}
+******/
+
+/************
+add, sub, mul, div,
+Re, Im, abs, arg, neg, recip, conj, xchg,
+addRe, addIm, addAbs, addArg,
+mulRe, mulIm, mulAbs, mulArg,
+sq, cb, powN, sqrt, cbrt, powRe, powIm, pow,
+exp, log,
+sin, cos, tan, sec, csc, cot,
+asin, acos, atan, asec, acsc, acot,
+sinh, cosh, tanh, sech, csch, coth,
+asinh, acosh, atanh, asech, acsch, acoth
+************/
+
+drawAll();
+</textarea>
+            <div class="divButton" id="divButtonGrid">Grid</div>
+            <div class="divButton" id="divButtonSave">Save</div>
+            <div class="divButton" id="divButtonRun">Run</div>
+        </div>
+        <script type="text/javascript">
+            function add(x,y){
+                return [x[0]+y[0],x[1]+y[1]];
+            }
+            function sub(x,y){
+                return [x[0]-y[0],x[1]-y[1]];
+            }
+            function mul(x,y){
+                return [x[0]*y[0]-x[1]*y[1],x[0]*y[1]+x[1]*y[0]];
+            }
+            function div(x,y){
+                var yRe=y[0],yIm=y[1],yMS=yRe*yRe+yIm*yIm;
+                return [(x[0]*yRe+x[1]*yIm)/yMS,(x[1]*yRe-x[0]*yIm)/yMS];
+            }
+
+            function Re(x){
+                return [x[0],0];
+            }
+            function Im(x){
+                return [x[1],0];
+            }
+            function abs(x){
+                return [Math.hypot(x[0],x[1]),0];
+            }
+            function arg(x){
+                return [Math.atan2(x[1],x[0]),0];
+            }
+            function neg(x){
+                return [-x[0],-x[1]];
+            }
+            function recip(x){
+                var xRe=x[0],xIm=x[1],xMS=xRe*xRe+xIm*xIm;
+                return [xRe/xMS,-xIm/xMS];
+            }
+            function conj(x){
+                return [x[0],-x[1]];
+            }
+            function xchg(x){
+                return [x[1],x[0]];
+            }
+
+            function addRe(x,re){
+                return [x[0]+re,x[1]];
+            }
+            function addIm(x,im){
+                return [x[0],x[1]+im];
+            }
+            function addAbs(x,abs){
+                var r=abs/Math.hypot(x[0],x[1])+1;
+                return [x[0]*r,x[1]*r];
+            }
+            function addArg(x,arg){
+                var c=Math.cos(arg),s=Math.sin(arg);
+                return [x[0]*c-x[1]*s,x[0]*s+x[1]*c];
+            }
+            function mulRe(x,re){
+                return [x[0]*re,x[1]*re];
+            }
+            function mulIm(x,im){
+                return [-x[1]*im,x[0]*im];
+            }
+            function mulAbs(x,abs){
+                return [x[0]*abs,x[1]*abs];
+            }
+            function mulArg(x,arg){
+                var t=Math.atan2(x[1],x[0])*(arg-1),c=Math.cos(t),s=Math.sin(t);
+                return [x[0]*c-x[1]*s,x[0]*s+x[1]*c];
+            }
+
+            function sq(x){
+                var xRe=x[0],xIm=x[1];
+                return [xRe*xRe-xIm*xIm,xRe*xIm*2];
+            }
+            function cb(x){
+                var xRe=x[0],xIm=x[1],xRe2=xRe*xRe,xIm2=xIm*xIm;
+                return [(xRe2-xIm2*3)*xRe,(xRe2*3-xIm2)*xIm];
+            }
+            function powN(x,n){
+                var xRe=x[0],xIm=x[1],re=1,im=0,tmp=0,e=0;
+                while(n){
+                    e<<=1;
+                    e|=n&1;
+                    n>>>=1;
+                }
+                while(e){
+                    tmp=re*re-im*im;
+                    im*=re*2;
+                    re=tmp;
+                    if(e&1){
+                        tmp=re*xRe-im*xIm;
+                        im=re*xIm+im*xRe;
+                        re=tmp;
+                    }
+                    e>>>=1;
+                }
+                return [re,im];
+            }
+            function sqrt(x){
+                var xRe=x[0],xAbs=Math.hypot(xRe,x[1]);
+                return [Math.sqrt((xAbs+xRe)*0.5),x[1]<0?-Math.sqrt((xAbs-xRe)*0.5):Math.sqrt((xAbs-xRe)*0.5)];
+            }
+            function cbrt(x){
+                var abs=Math.cbrt(Math.hypot(x[0],x[1])),arg=Math.atan2(x[1],x[0])/3;
+                return [abs*Math.cos(arg),abs*Math.sin(arg)];
+            }
+            function powRe(x,re){
+                var abs=Math.pow(Math.hypot(x[0],x[1]),re),arg=Math.atan2(x[1],x[0])*re;
+                return [abs*Math.cos(arg),abs*Math.sin(arg)];
+            }
+            function powIm(x,im){
+                var abs=Math.exp(-Math.atan2(x[1],x[0])*im),arg=Math.log(Math.hypot(x[0],x[1]))*im;
+                return [abs*Math.cos(arg),abs*Math.sin(arg)];
+            }
+            function pow(x,y){
+                var xLogAbs=Math.log(Math.hypot(x[0],x[1])),xArg=Math.atan2(x[1],x[0]),
+                    abs=Math.exp(y[0]*xLogAbs-y[1]*xArg),arg=y[0]*xArg+y[1]*xLogAbs;
+                return [abs*Math.cos(arg),abs*Math.sin(arg)];
+            }
+
+            function exp(x){
+                return [Math.exp(x[0])*Math.cos(x[1]),Math.exp(x[0])*Math.sin(x[1])];
+            }
+            function log(x){
+                return [Math.log(Math.hypot(x[0],x[1])),Math.atan2(x[1],x[0])];
+            }
+
+            function sin(x){
+                return [Math.sin(x[0])*Math.cosh(x[1]),Math.cos(x[0])*Math.sinh(x[1])];
+            }
+            function cos(x){
+                return [Math.cos(x[0])*Math.cosh(x[1]),-Math.sin(x[0])*Math.sinh(x[1])];
+            }
+            function tan(x){
+                var txRe=Math.tan(x[0]),thxIm=Math.tanh(x[1]),txRe2=txRe*txRe,thxIm2=thxIm*thxIm,denom=txRe2*thxIm2+1;
+                return [(1-thxIm2)*txRe/denom,(txRe2+1)*thxIm/denom];
+            }
+            function sec(x){
+                return recip(cos(x));
+            }
+            function csc(x){
+                return recip(sin(x));
+            }
+            function cot(x){
+                return recip(tan(x));
+            }
+
+            function asin(x){
+                var xRe=x[0],xIm=x[1],omx2Re=xIm*xIm-xRe*xRe+1,omx2Im=-2*xRe*xIm,omx2Abs=Math.hypot(omx2Re,omx2Im),
+                    ixpsqrtomx2Re=Math.sqrt((omx2Abs+omx2Re)*0.5)-xIm,
+                    ixpsqrtomx2Im=omx2Im<0?xRe-Math.sqrt((omx2Abs-omx2Re)*0.5):Math.sqrt((omx2Abs-omx2Re)*0.5)+xRe;
+                return [Math.atan2(ixpsqrtomx2Im,ixpsqrtomx2Re),-Math.log(Math.hypot(ixpsqrtomx2Re,ixpsqrtomx2Im))];
+            }
+            function acos(x){
+                var xRe=x[0],xIm=x[1],omx2Re=xIm*xIm-xRe*xRe+1,omx2Im=-2*xRe*xIm,omx2Abs=Math.hypot(omx2Re,omx2Im),
+                    ixpsqrtomx2Re=Math.sqrt((omx2Abs+omx2Re)*0.5)-xIm,
+                    ixpsqrtomx2Im=omx2Im<0?xRe-Math.sqrt((omx2Abs-omx2Re)*0.5):Math.sqrt((omx2Abs-omx2Re)*0.5)+xRe;
+                return [Math.PI/2-Math.atan2(ixpsqrtomx2Im,ixpsqrtomx2Re),Math.log(Math.hypot(ixpsqrtomx2Re,ixpsqrtomx2Im))];
+            }
+            function atan(x){
+                var xRe=x[0],xIm=x[1],omixRe=xIm+1,opixRe=1-xIm;
+                return [(Math.atan2(xRe,opixRe)-Math.atan2(-xRe,omixRe))*0.5,(Math.log(Math.hypot(omixRe,xRe))-Math.log(Math.hypot(opixRe,xRe)))*0.5];
+            }
+            function asec(x){
+                return acos(recip(x));
+            }
+            function acsc(x){
+                return asin(recip(x));
+            }
+            function acot(x){
+                return atan(recip(x));
+            }
+
+            function sinh(x){
+                return [Math.sinh(x[0])*Math.cos(x[1]),Math.cosh(x[0])*Math.sin(x[1])];
+            }
+            function cosh(x){
+                return [Math.cosh(x[0])*Math.cos(x[1]),Math.sinh(x[0])*Math.sin(x[1])];
+            }
+            function tanh(x){
+                var thxRe=Math.tanh(x[0]),txIm=Math.tan(x[1]),thxRe2=thxRe*thxRe,txIm2=txIm*txIm,denom=thxRe2*txIm2+1;
+                return [(txIm2+1)*thxRe/denom,(1-thxRe2)*txIm/denom];
+            }
+            function sech(x){
+                return recip(cosh(x));
+            }
+            function csch(x){
+                return recip(sinh(x));
+            }
+            function coth(x){
+                return recip(tanh(x));
+            }
+
+            function asinh(x){
+                var xRe=x[0],xIm=x[1],opx2Re=xRe*xRe-xIm*xIm+1,opx2Im=2*xRe*xIm,opx2Abs=Math.hypot(opx2Re,opx2Im),
+                    xpsqrtopx2Re=Math.sqrt((opx2Abs+opx2Re)*0.5)+xRe,
+                    xpsqrtopx2Im=opx2Im<0?xIm-Math.sqrt((opx2Abs-opx2Re)*0.5):Math.sqrt((opx2Abs-opx2Re)*0.5)+xIm;
+                return [Math.log(Math.hypot(xpsqrtopx2Re,xpsqrtopx2Im)),Math.atan2(xpsqrtopx2Im,xpsqrtopx2Re)];
+            }
+            function acosh(x){
+                var xRe=x[0],xIm=x[1],xmoRe=xRe-1,xpoRe=xRe+1,xmoAbs=Math.hypot(xmoRe,xIm),xpoAbs=Math.hypot(xpoRe,xIm),
+                    sqrtxmoRe=Math.sqrt((xmoAbs+xmoRe)*0.5),
+                    sqrtxmoIm=xIm<0?-Math.sqrt((xmoAbs-xmoRe)*0.5):Math.sqrt((xmoAbs-xmoRe)*0.5),
+                    sqrtxpoRe=Math.sqrt((xpoAbs+xpoRe)*0.5),
+                    sqrtxpoIm=xIm<0?-Math.sqrt((xpoAbs-xpoRe)*0.5):Math.sqrt((xpoAbs-xpoRe)*0.5),
+                    xpsqrtxmomsqrtxpoRe=sqrtxmoRe*sqrtxpoRe-sqrtxmoIm*sqrtxpoIm+xRe,
+                    xpsqrtxmomsqrtxpoIm=sqrtxmoRe*sqrtxpoIm+sqrtxmoIm*sqrtxpoRe+xIm;
+                return [Math.log(Math.hypot(xpsqrtxmomsqrtxpoRe,xpsqrtxmomsqrtxpoIm)),Math.atan2(xpsqrtxmomsqrtxpoIm,xpsqrtxmomsqrtxpoRe)];
+            }
+            function atanh(x){
+                var opxRe=x[0]+1,omxRe=1-x[0],xIm=x[1];
+                return [(Math.log(Math.hypot(opxRe,xIm))-Math.log(Math.hypot(omxRe,xIm)))*0.5,(Math.atan2(xIm,opxRe)-Math.atan2(-xIm,omxRe))*0.5];
+            }
+            function asech(x){
+                return acosh(recip(x));
+            }
+            function acsch(x){
+                return asinh(recip(x));
+            }
+            function acoth(x){
+                return atanh(recip(x));
+            }
+        </script>
+        <script type="text/javascript">
+            const CTX_FONT_NUMBER="normal 20px monospace",CTX_FONT_O="italic bold 20px Times";
+            const N_SHORT_EDGE_GRIDS_MIN=2,N_SHORT_EDGE_GRIDS_MAX=8,SINGLE_POINT_ZOOM_DELAY=400;
+            var cvsWebGL2=document.getElementById("cvsWebGL2"),
+                cvs2D=document.getElementById("cvs2D"),
+                divControlPanel=document.getElementById("divControlPanel"),
+                textareaInputCode=document.getElementById("textareaInputCode"),
+                divButtonGrid=document.getElementById("divButtonGrid"),
+                divButtonSave=document.getElementById("divButtonSave"),
+                divButtonRun=document.getElementById("divButtonRun");
+            var gl=cvsWebGL2.getContext("webgl2",{alpha:false,
+                    antialias:false,
+                    depth:false,
+                    stencil:false,
+                    desynchronized:true,
+                    failIfMajorPerformanceCaveat:false,
+                    powerPreference:"high-performance",
+                    premultipliedAlpha:true,
+                    preserveDrawingBuffer:false}),
+                ctx=cvs2D.getContext("2d",{alpha:true,
+                    desynchronized:true,
+                    willReadFrequently:false});
+            var width=0,height=0;
+            var Ox=0,Oy=0,xPixelsPerGrid=1,yPixelsPerGrid=1,xUnitsPerGrid,yUnitsPerGrid,xPixelsPerUnit=1,yPixelsPerUnit=1,nSubGridsX=1,nSubGridsY=1;
+            var nXGridsMin=0,nXGridsMax=0,nYGridsMin=0,nYGridsMax=0;
+            var Ox0=0,Oy0=0,xPixelsPerUnit0=1,yPixelsPerUnit0=1;
+            var evtMouseDownX=0,evtMouseDownY=0,isMouseDown=false,isClick=true;
+            var touchesCenterX=0,touchesCenterY=0,touchesCenterDistanceRMS=0;
+            var singlePointZoomTimer=0,singlePointZoomTimeoutID=0,singlePointZoomInitialDistance=1,isSinglePointZooming=false;
+            var clickX=0,clickY=0,isControlPanelVisible=false,isGridOn=true;
+            var fz=(z)=>z;
+            var colorImage=new Float32Array(0);
+
+            var vertexShaderSource=`#version 300 es
+in vec4 aVertexTextureCoords;
+out vec2 vTextureCoord;
+void main(){
+    gl_Position=vec4(aVertexTextureCoords.xy,0.0,1.0);
+    vTextureCoord=aVertexTextureCoords.zw;
+}
+`;
+
+            var fragmentShaderSource=`#version 300 es
+precision highp float;
+uniform highp sampler2D uColorImage;
+in vec2 vTextureCoord;
+out vec4 outColor;
+void main(){
+    outColor=texture(uColorImage,vTextureCoord);
+}
+`;
+
+            function createShader(gl,type,source){
+                var shader=gl.createShader(type);
+                gl.shaderSource(shader,source);
+                gl.compileShader(shader);
+                var success=gl.getShaderParameter(shader,gl.COMPILE_STATUS);
+                if(success){
+                    return shader;
+                }
+                alert(gl.getShaderInfoLog(shader));
+                console.log(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+            }
+            function createProgram(gl,vertexShader,fragmentShader){
+                var program=gl.createProgram();
+                gl.attachShader(program,vertexShader);
+                gl.attachShader(program,fragmentShader);
+                gl.linkProgram(program);
+                var success=gl.getProgramParameter(program,gl.LINK_STATUS);
+                if(success){
+                    return program;
+                }
+                alert(gl.getProgramInfoLog(program));
+                console.log(gl.getProgramInfoLog(program));
+                gl.deleteProgram(program);
+            }
+            function createProgramFromSources(gl,vertexShaderSource,fragmentShaderSource){
+                var vertexShader=createShader(gl,gl.VERTEX_SHADER,vertexShaderSource);
+                var fragmentShader=createShader(gl,gl.FRAGMENT_SHADER,fragmentShaderSource);
+                return createProgram(gl,vertexShader,fragmentShader);
+            }
+
+            // m must be 1, 2 or 5
+            function GridUnit(m=1,e=0){
+                this.m=m;
+                this.e=e;
+                this.numValue=parseFloat(m+"e"+e);
+            }
+            GridUnit.prototype.increase=function(){
+                if(this.m===1){
+                    this.m=2;
+                }else if(this.m===2){
+                    this.m=5;
+                }else{
+                    this.m=1;
+                    ++this.e;
+                }
+                this.numValue=parseFloat(this.m+"e"+this.e);
+                return this;
+            }
+            GridUnit.prototype.decrease=function(){
+                if(this.m===5){
+                    this.m=2;
+                }else if(this.m===2){
+                    this.m=1;
+                }else{
+                    this.m=5;
+                    --this.e;
+                }
+                this.numValue=parseFloat(this.m+"e"+this.e);
+                return this;
+            }
+
+            function GridNumber(m=1,e=0){
+                this.m=m;
+                this.e=e;
+                this.numValue=parseFloat(m+"e"+e);
+            }
+            GridNumber.prototype.addm=function(nInteger){
+                this.m+=nInteger;
+                this.numValue=parseFloat(this.m+"e"+this.e);
+                return this;
+            }
+            GridNumber.prototype.subm=function(nInteger){
+                this.m-=nInteger;
+                this.numValue=parseFloat(this.m+"e"+this.e);
+                return this;
+            }
+            GridNumber.prototype.mulm=function(nInteger){
+                this.m*=nInteger;
+                this.numValue=parseFloat(this.m+"e"+this.e);
+                return this;
+            }
+
+            function calculateNSubGrids(pixelsPerGrid,minPixelsPerSubGrid=10){
+                var nSubGrids=1,nSubGridsNext=1,m=1,e=0;
+                while(pixelsPerGrid>=minPixelsPerSubGrid*nSubGridsNext){
+                    if(m===1){
+                        m=2;
+                    }else if(m===2){
+                        m=5;
+                    }else{
+                        m=1;
+                        ++e;
+                    }
+                    nSubGrids=nSubGridsNext;
+                    nSubGridsNext=parseFloat(m+"e"+e);
+                }
+                return nSubGrids;
+            }
+
+            function adjustGrid(xPPU,yPPU){
+                // set pixels per unit
+                xPixelsPerUnit=xPPU;
+                yPixelsPerUnit=yPPU;
+                // set pixels per grid
+                xPixelsPerGrid=xPPU*xUnitsPerGrid.numValue;
+                yPixelsPerGrid=yPPU*yUnitsPerGrid.numValue;
+                // adjust units per grid
+                var nXGrids=width/xPixelsPerGrid,nYGrids=height/yPixelsPerGrid;
+                while(nXGrids<nXGridsMin){
+                    xUnitsPerGrid.decrease();
+                    xPixelsPerGrid=xPPU*xUnitsPerGrid.numValue;
+                    nXGrids=width/xPixelsPerGrid;
+                }
+                while(nXGrids>nXGridsMax){
+                    xUnitsPerGrid.increase();
+                    xPixelsPerGrid=xPPU*xUnitsPerGrid.numValue;
+                    nXGrids=width/xPixelsPerGrid;
+                }
+                while(nYGrids<nYGridsMin){
+                    yUnitsPerGrid.decrease();
+                    yPixelsPerGrid=yPPU*yUnitsPerGrid.numValue;
+                    nYGrids=height/yPixelsPerGrid;
+                }
+                while(nYGrids>nYGridsMax){
+                    yUnitsPerGrid.increase();
+                    yPixelsPerGrid=yPPU*yUnitsPerGrid.numValue;
+                    nYGrids=height/yPixelsPerGrid;
+                }
+                // calculate number of sub-grids
+                nSubGridsX=calculateNSubGrids(xPixelsPerGrid,10);
+                nSubGridsY=calculateNSubGrids(yPixelsPerGrid,10);
+            }
+
+            function drawCoordinates(ctx,Ox,Oy,xPixelsPerGrid,yPixelsPerGrid,xUnitsPerGrid,yUnitsPerGrid,nSubGridsX=1,nSubGridsY=1){
+                const GRID_LINE_WIDTH=2,SUBGRID_LINE_WIDTH=0.5;
+                var xGridMin=Math.ceil(-Ox/xPixelsPerGrid),yGridMax=Math.floor(Oy/yPixelsPerGrid),
+                    xPixelsPerSubGrid=xPixelsPerGrid/nSubGridsX,yPixelsPerSubGrid=yPixelsPerGrid/nSubGridsY,
+                    drawO=Ox>=0&&Ox<=width&&Oy>=0&&Oy<=height;
+
+                // draw sub-grids:
+                // xSubGridMin===Math.ceil(-Ox/xPixelsPerSubGrid),
+                // ySubGridMax===Math.floor(Oy/yPixelsPerSubGrid).
+                ctx.lineWidth=SUBGRID_LINE_WIDTH;
+                ctx.beginPath();
+                for(var x=Ox+Math.ceil(-Ox/xPixelsPerSubGrid)*xPixelsPerSubGrid;x<=width;x+=xPixelsPerSubGrid){
+                    ctx.moveTo(x,0);
+                    ctx.lineTo(x,height);
+                }
+                for(var y=Oy-Math.floor(Oy/yPixelsPerSubGrid)*yPixelsPerSubGrid;y<=height;y+=yPixelsPerSubGrid){
+                    ctx.moveTo(0,y);
+                    ctx.lineTo(width,y);
+                }
+                ctx.stroke();
+                ctx.closePath();
+
+                // draw grids:
+                ctx.lineWidth=GRID_LINE_WIDTH;
+                ctx.beginPath();
+                for(var x=Ox+xGridMin*xPixelsPerGrid;x<=width;x+=xPixelsPerGrid){
+                    ctx.moveTo(x,0);
+                    ctx.lineTo(x,height);
+                }
+                for(var y=Oy-yGridMax*yPixelsPerGrid;y<=height;y+=yPixelsPerGrid){
+                    ctx.moveTo(0,y);
+                    ctx.lineTo(width,y);
+                }
+                ctx.stroke();
+                ctx.closePath();
+
+                // draw numbers:
+                ctx.font=CTX_FONT_NUMBER;
+                var tm=ctx.measureText("+,-./0123456789e");
+                var textXMin=0,textXMax=0,textX=0,
+                    textYMin=tm.actualBoundingBoxAscent+GRID_LINE_WIDTH,
+                    textYMax=height-tm.actualBoundingBoxDescent-GRID_LINE_WIDTH,
+                    textY=Oy+tm.actualBoundingBoxAscent+GRID_LINE_WIDTH;
+                if(textY<textYMin){
+                    textY=textYMin;
+                }
+                if(textY>textYMax){
+                    textY=textYMax;
+                }
+                for(var x=Ox+xGridMin*xPixelsPerGrid,xGridNumber=(new GridNumber(xUnitsPerGrid.m,xUnitsPerGrid.e)).mulm(xGridMin);x<=width;x+=xPixelsPerGrid,xGridNumber.addm(xUnitsPerGrid.m)){
+                    if(xGridNumber.m!==0||!drawO){
+                        tm=ctx.measureText(xGridNumber.numValue);
+                        textXMin=tm.actualBoundingBoxLeft+GRID_LINE_WIDTH;
+                        textXMax=width-tm.actualBoundingBoxRight-GRID_LINE_WIDTH;
+                        textX=x+(tm.actualBoundingBoxLeft-tm.actualBoundingBoxRight)/2;
+                        if(textX<textXMin){
+                            textX=textXMin;
+                        }
+                        if(textX>textXMax){
+                            textX=textXMax;
+                        }
+                        ctx.clearRect(textX-tm.actualBoundingBoxLeft,textY-tm.actualBoundingBoxAscent,
+                                      tm.actualBoundingBoxLeft+tm.actualBoundingBoxRight,
+                                      tm.actualBoundingBoxAscent+tm.actualBoundingBoxDescent);
+                        ctx.fillText(xGridNumber.numValue,textX,textY);
+                    }
+                }
+                for(var y=Oy-yGridMax*yPixelsPerGrid,yGridNumber=(new GridNumber(yUnitsPerGrid.m,yUnitsPerGrid.e)).mulm(yGridMax);y<=height;y+=yPixelsPerGrid,yGridNumber.subm(yUnitsPerGrid.m)){
+                    if(yGridNumber.m!==0||!drawO){
+                        tm=ctx.measureText(yGridNumber.numValue);
+                        textXMin=tm.actualBoundingBoxLeft+GRID_LINE_WIDTH;
+                        textXMax=width-tm.actualBoundingBoxRight-GRID_LINE_WIDTH;
+                        textX=Ox-tm.actualBoundingBoxRight-GRID_LINE_WIDTH;
+                        textY=y+(tm.actualBoundingBoxAscent-tm.actualBoundingBoxDescent)/2;
+                        if(textX<textXMin){
+                            textX=textXMin;
+                        }
+                        if(textX>textXMax){
+                            textX=textXMax;
+                        }
+                        if(textY<textYMin){
+                            textY=textYMin;
+                        }
+                        if(textY>textYMax){
+                            textY=textYMax;
+                        }
+                        ctx.clearRect(textX-tm.actualBoundingBoxLeft,textY-tm.actualBoundingBoxAscent,
+                                      tm.actualBoundingBoxLeft+tm.actualBoundingBoxRight,
+                                      tm.actualBoundingBoxAscent+tm.actualBoundingBoxDescent);
+                        ctx.fillText(yGridNumber.numValue,textX,textY);
+                    }
+                }
+
+                // draw the origin:
+                if(drawO){
+                    ctx.font=CTX_FONT_O;
+                    tm=ctx.measureText("O");
+                    textXMin=tm.actualBoundingBoxLeft+GRID_LINE_WIDTH;
+                    textXMax=width-tm.actualBoundingBoxRight-GRID_LINE_WIDTH;
+                    textX=Ox-tm.actualBoundingBoxRight-GRID_LINE_WIDTH;
+                    textYMin=tm.actualBoundingBoxAscent+GRID_LINE_WIDTH;
+                    textYMax=height-tm.actualBoundingBoxDescent-GRID_LINE_WIDTH;
+                    textY=Oy+tm.actualBoundingBoxAscent+GRID_LINE_WIDTH;
+                    if(textX<textXMin){
+                        textX=textXMin;
+                    }
+                    if(textX>textXMax){
+                        textX=textXMax;
+                    }
+                    if(textY<textYMin){
+                        textY=textYMin;
+                    }
+                    if(textY>textYMax){
+                        textY=textYMax;
+                    }
+                    ctx.clearRect(textX-tm.actualBoundingBoxLeft,textY-tm.actualBoundingBoxAscent,
+                                  tm.actualBoundingBoxLeft+tm.actualBoundingBoxRight,
+                                  tm.actualBoundingBoxAscent+tm.actualBoundingBoxDescent);
+                    ctx.fillText("O",textX,textY);
+                }
+            }
+
+            function hsl2rgb(hsl){
+                var h=hsl[0],s=hsl[1],l=hsl[2];
+                var c=s*Math.min(l,1-l);
+                var max=l+c,min=l-c;
+                c*=2;
+                h/=60;
+                if(h<=1){return [max,h*c+min,min];}
+                if(h<=2){return [(2-h)*c+min,max,min];}
+                if(h<=3){return [min,max,(h-2)*c+min];}
+                if(h<=4){return [min,(4-h)*c+min,max];}
+                if(h<=5){return [(h-4)*c+min,min,max];}
+                return [max,min,(6-h)*c+min];
+            }
+
+            function colorFunction(z,k){
+                var re=z[0],im=z[1],
+                    h=Math.atan2(im,re)*3/Math.PI,l=Math.log2(Math.hypot(re,im));
+                l=(l-Math.floor(l))*0.5;
+                var c=Math.min(l,1-l);
+                var max=l+c,min=l-c;
+                c*=2;
+                if(h<0){
+                    if(h>=-1){
+                        colorImage[k]=max;
+                        colorImage[k+1]=min;
+                        colorImage[k+2]=min-h*c;
+                        return;
+                    }
+                    if(h>=-2){
+                        colorImage[k]=(h+2)*c+min;
+                        colorImage[k+1]=min;
+                        colorImage[k+2]=max;
+                        return;
+                    }
+                    colorImage[k]=min;
+                    colorImage[k+1]=min-(h+2)*c;
+                    colorImage[k+2]=max;
+                    return;
+                }
+                if(h<=1){
+                    colorImage[k]=max;
+                    colorImage[k+1]=h*c+min;
+                    colorImage[k+2]=min;
+                    return;
+                }
+                if(h<=2){
+                    colorImage[k]=(2-h)*c+min;
+                    colorImage[k+1]=max;
+                    colorImage[k+2]=min;
+                    return;
+                }
+                colorImage[k]=min;
+                colorImage[k+1]=max;
+                colorImage[k+2]=(h-2)*c+min;
+            }
+
+            function drawComplexPlot(){
+                for(var i=0,k=0;i<height;++i){
+                    for(var j=0;j<width;++j,k+=3){
+                        // re=(j-Ox)/xPixelsPerUnit;
+                        // im=(Oy-i)/yPixelsPerUnit;
+                        colorFunction(fz([(j-Ox)/xPixelsPerUnit,(Oy-i)/yPixelsPerUnit]),k);
+                    }
+                }
+                gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB32F,width,height,0,gl.RGB,gl.FLOAT,colorImage);
+                gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+            }
+
+            function drawAll(){
+                if(isGridOn){
+                    ctx.clearRect(0,0,width,height);
+                    drawCoordinates(ctx,Ox,Oy,xPixelsPerGrid,yPixelsPerGrid,xUnitsPerGrid,yUnitsPerGrid,nSubGridsX,nSubGridsY);
+                }
+                drawComplexPlot();
+            }
+
+            function handleClick(x,y){
+                clickX=x;
+                clickY=y;
+                singlePointZoomTimer=performance.now();
+                singlePointZoomTimeoutID=setTimeout(function(){
+                    isControlPanelVisible=!isControlPanelVisible;
+                    divControlPanel.style.visibility=isControlPanelVisible?"visible":"hidden";
+                },SINGLE_POINT_ZOOM_DELAY+20);
+            }
+            function evtMouseDown(evt){
+                evt.preventDefault();
+                evtMouseDownX=evt.offsetX;
+                evtMouseDownY=evt.offsetY;
+                Ox0=Ox;
+                Oy0=Oy;
+                xPixelsPerUnit0=xPixelsPerUnit;
+                yPixelsPerUnit0=yPixelsPerUnit;
+                isMouseDown=true;
+                isClick=true;
+                isSinglePointZooming=false;
+                if(performance.now()-singlePointZoomTimer<SINGLE_POINT_ZOOM_DELAY){
+                    clearTimeout(singlePointZoomTimeoutID);
+                    singlePointZoomInitialDistance=Math.max(Math.hypot(clickX-evtMouseDownX,clickY-evtMouseDownY),1);
+                    isSinglePointZooming=true;
+                    isClick=false;
+                }
+            }
+            function evtMouseMove(evt){
+                evt.preventDefault();
+                if(isMouseDown){
+                    if(isSinglePointZooming){
+                        var scale=Math.max(Math.hypot(clickX-evt.offsetX,clickY-evt.offsetY),1)/singlePointZoomInitialDistance;
+                        Ox=(Ox0-clickX)*scale+clickX;
+                        Oy=(Oy0-clickY)*scale+clickY;
+                        adjustGrid(xPixelsPerUnit0*scale,yPixelsPerUnit0*scale);
+                    }else{
+                        Ox=Ox0-evtMouseDownX+evt.offsetX;
+                        Oy=Oy0-evtMouseDownY+evt.offsetY;
+                    }
+                    drawAll();
+                    isClick=false;
+                }
+            }
+            function evtMouseUp(evt){
+                evt.preventDefault();
+                if(isClick){
+                    handleClick(evt.offsetX,evt.offsetY);
+                    isMouseDown=false;
+                    return;
+                }
+                if(isMouseDown){
+                    if(isSinglePointZooming){
+                        var scale=Math.max(Math.hypot(clickX-evt.offsetX,clickY-evt.offsetY),1)/singlePointZoomInitialDistance;
+                        Ox=(Ox0-clickX)*scale+clickX;
+                        Oy=(Oy0-clickY)*scale+clickY;
+                        adjustGrid(xPixelsPerUnit0*scale,yPixelsPerUnit0*scale);
+                    }else{
+                        Ox=Ox0-evtMouseDownX+evt.offsetX;
+                        Oy=Oy0-evtMouseDownY+evt.offsetY;
+                    }
+                    drawAll();
+                    isMouseDown=false;
+                    isSinglePointZooming=false;
+                }
+            }
+            function evtMouseLeave(evt){
+                evt.preventDefault();
+                if(isMouseDown){
+                    if(isSinglePointZooming){
+                        var scale=Math.max(Math.hypot(clickX-evt.offsetX,clickY-evt.offsetY),1)/singlePointZoomInitialDistance;
+                        Ox=(Ox0-clickX)*scale+clickX;
+                        Oy=(Oy0-clickY)*scale+clickY;
+                        adjustGrid(xPixelsPerUnit0*scale,yPixelsPerUnit0*scale);
+                    }else{
+                        Ox=Ox0-evtMouseDownX+evt.offsetX;
+                        Oy=Oy0-evtMouseDownY+evt.offsetY;
+                    }
+                    drawAll();
+                    isMouseDown=false;
+                    isSinglePointZooming=false;
+                }
+            }
+            function initializeTouchInfo(touches){
+                var n=touches.length,touchesSquareSum=0;
+                touchesCenterX=0;
+                touchesCenterY=0;
+                for(var i=0,x=0,y=0;i<n;++i){
+                    x=touches[i].pageX;
+                    y=touches[i].pageY;
+                    touchesCenterX+=x;
+                    touchesCenterY+=y;
+                    touchesSquareSum+=x*x+y*y;
+                }
+                touchesCenterX/=n;
+                touchesCenterY/=n;
+                touchesCenterDistanceRMS=Math.sqrt(Math.max(touchesSquareSum/n-(touchesCenterX*touchesCenterX+touchesCenterY*touchesCenterY),1));
+                Ox0=Ox;
+                Oy0=Oy;
+                xPixelsPerUnit0=xPixelsPerUnit;
+                yPixelsPerUnit0=yPixelsPerUnit;
+            }
+            function evtTouchStart(evt){
+                evt.preventDefault();
+                var touches=evt.touches,n=touches.length;
+                initializeTouchInfo(touches);
+                isClick=n===1;
+                isSinglePointZooming=false;
+                if(isClick&&performance.now()-singlePointZoomTimer<SINGLE_POINT_ZOOM_DELAY){
+                    clearTimeout(singlePointZoomTimeoutID);
+                    singlePointZoomInitialDistance=Math.max(Math.hypot(clickX-touchesCenterX,clickY-touchesCenterY),1);
+                    isSinglePointZooming=true;
+                    isClick=false;
+                }
+            }
+            function evtTouchMove(evt){
+                evt.preventDefault();
+                var touches=evt.touches,n=touches.length;
+                if(n===1){
+                    if(isSinglePointZooming){
+                        var scale=Math.max(Math.hypot(clickX-touches[0].pageX,clickY-touches[0].pageY),1)/singlePointZoomInitialDistance;
+                        Ox=(Ox0-clickX)*scale+clickX;
+                        Oy=(Oy0-clickY)*scale+clickY;
+                        adjustGrid(xPixelsPerUnit0*scale,yPixelsPerUnit0*scale);
+                    }else{
+                        Ox=Ox0-touchesCenterX+touches[0].pageX;
+                        Oy=Oy0-touchesCenterY+touches[0].pageY;
+                    }
+                    drawAll();
+                    isClick=false;
+                    return;
+                }
+                var currentTouchesCenterX=0,currentTouchesCenterY=0,currentTouchesSquareSum=0;
+                for(var i=0,x=0,y=0;i<n;++i){
+                    x=touches[i].pageX;
+                    y=touches[i].pageY;
+                    currentTouchesCenterX+=x;
+                    currentTouchesCenterY+=y;
+                    currentTouchesSquareSum+=x*x+y*y;
+                }
+                currentTouchesCenterX/=n;
+                currentTouchesCenterY/=n;
+                var currentTouchesCenterDistanceRMS=Math.sqrt(Math.max(currentTouchesSquareSum/n-(currentTouchesCenterX*currentTouchesCenterX+currentTouchesCenterY*currentTouchesCenterY),1)),
+                    scale=currentTouchesCenterDistanceRMS/touchesCenterDistanceRMS;
+                Ox=(Ox0-touchesCenterX)*scale+currentTouchesCenterX;
+                Oy=(Oy0-touchesCenterY)*scale+currentTouchesCenterY;
+                adjustGrid(xPixelsPerUnit0*scale,yPixelsPerUnit0*scale);
+                drawAll();
+                isClick=false;
+            }
+            function evtTouchEnd(evt){
+                evt.preventDefault();
+                var touches=evt.touches;
+                isSinglePointZooming=false;
+                if(touches.length!==0){
+                    initializeTouchInfo(touches);
+                    return;
+                }
+                if(isClick){
+                    handleClick(evt.changedTouches[0].pageX,evt.changedTouches[0].pageY);
+                }
+            }
+            function evtTouchCancel(evt){
+                evt.preventDefault();
+                var touches=evt.touches;
+                isSinglePointZooming=false;
+                if(touches.length!==0){
+                    initializeTouchInfo(touches);
+                }
+            }
+            function evtWheel(evt){
+                evt.preventDefault();
+                var scale=evt.deltaY>0?0.91700404320467123174:1.0905077326652576592;
+                Ox=(Ox-evt.offsetX)*scale+evt.offsetX;
+                Oy=(Oy-evt.offsetY)*scale+evt.offsetY;
+                adjustGrid(xPixelsPerUnit*scale,yPixelsPerUnit*scale);
+                drawAll();
+            }
+            function evtResize(evt){
+                Ox+=(window.innerWidth-width)/2;
+                Oy+=(window.innerHeight-height)/2;
+                Ox0=Ox;
+                Oy0=Oy;
+
+                width=window.innerWidth;
+                height=window.innerHeight;
+                if(width<height){
+                    nXGridsMin=N_SHORT_EDGE_GRIDS_MIN;
+                    nXGridsMax=N_SHORT_EDGE_GRIDS_MAX;
+                    nYGridsMin=nXGridsMin*height/width;
+                    nYGridsMax=nXGridsMax*height/width;
+                }else{
+                    nYGridsMin=N_SHORT_EDGE_GRIDS_MIN;
+                    nYGridsMax=N_SHORT_EDGE_GRIDS_MAX;
+                    nXGridsMin=nYGridsMin*width/height;
+                    nXGridsMax=nYGridsMax*width/height;
+                }
+                cvsWebGL2.width=width;
+                cvsWebGL2.height=height;
+                cvs2D.width=width;
+                cvs2D.height=height;
+                ctx.fillStyle="#ffffff";
+                ctx.strokeStyle="#ffffff";
+                ctx.lineCap="square";
+
+                adjustGrid(xPixelsPerUnit,yPixelsPerUnit);
+                gl.viewport(0,0,width,height);
+                colorImage=new Float32Array(width*height*3);
+                drawAll();
+            }
+            function init(){
+                width=window.innerWidth;
+                height=window.innerHeight;
+                if(width<height){
+                    nXGridsMin=N_SHORT_EDGE_GRIDS_MIN;
+                    nXGridsMax=N_SHORT_EDGE_GRIDS_MAX;
+                    nYGridsMin=nXGridsMin*height/width;
+                    nYGridsMax=nXGridsMax*height/width;
+                }else{
+                    nYGridsMin=N_SHORT_EDGE_GRIDS_MIN;
+                    nYGridsMax=N_SHORT_EDGE_GRIDS_MAX;
+                    nXGridsMin=nYGridsMin*width/height;
+                    nXGridsMax=nYGridsMax*width/height;
+                }
+                cvsWebGL2.width=width;
+                cvsWebGL2.height=height;
+                cvs2D.width=width;
+                cvs2D.height=height;
+                ctx.fillStyle="#ffffff";
+                ctx.strokeStyle="#ffffff";
+                ctx.lineCap="square";
+
+                Ox=width/2;
+                Oy=height/2;
+                xPixelsPerGrid=yPixelsPerGrid=Math.min(width,height)/5;
+                xUnitsPerGrid=new GridUnit(1,0);
+                yUnitsPerGrid=new GridUnit(1,0);
+                xPixelsPerUnit=yPixelsPerUnit=xPixelsPerGrid/xUnitsPerGrid.numValue;
+
+                Ox0=Ox;
+                Oy0=Oy;
+                xPixelsPerUnit0=xPixelsPerUnit;
+                yPixelsPerUnit0=yPixelsPerUnit;
+
+                adjustGrid(xPixelsPerUnit,yPixelsPerUnit);
+
+                var program=createProgramFromSources(gl,vertexShaderSource,fragmentShaderSource);
+                var aVertexTextureCoords=gl.getAttribLocation(program,"aVertexTextureCoords");
+                var uColorImage=gl.getUniformLocation(program,"uColorImage");
+
+                var vertexTextureCoordsBuffer=gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER,vertexTextureCoordsBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([
+                    -1,-1, 0, 1,
+                     1,-1, 1, 1,
+                    -1, 1, 0, 0,
+                     1, 1, 1, 0
+                ]),gl.STATIC_DRAW);
+
+                var vertexArrayObject=gl.createVertexArray();
+                gl.bindVertexArray(vertexArrayObject);
+
+                gl.bindBuffer(gl.ARRAY_BUFFER,vertexTextureCoordsBuffer);
+                gl.enableVertexAttribArray(aVertexTextureCoords);
+                gl.vertexAttribPointer(aVertexTextureCoords,4,gl.FLOAT,false,16,0);
+
+                var texColorImage=gl.createTexture();
+
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D,texColorImage);
+
+                gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+
+                gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);
+
+                gl.useProgram(program);
+                gl.uniform1i(uColorImage,0);
+                gl.bindVertexArray(vertexArrayObject);
+                gl.activeTexture(gl.TEXTURE0);
+
+                gl.viewport(0,0,width,height);
+                colorImage=new Float32Array(width*height*3);
+                drawAll();
+                divControlPanel.style.visibility="hidden";
+            }
+            cvs2D.addEventListener("mousedown",evtMouseDown,false);
+            cvs2D.addEventListener("mousemove",evtMouseMove,false);
+            cvs2D.addEventListener("mouseup",evtMouseUp,false);
+            cvs2D.addEventListener("mouseleave",evtMouseLeave,false);
+            cvs2D.addEventListener("touchstart",evtTouchStart,{capture:false,once:false,passive:false});
+            cvs2D.addEventListener("touchmove",evtTouchMove,{capture:false,once:false,passive:false});
+            cvs2D.addEventListener("touchend",evtTouchEnd,{capture:false,once:false,passive:false});
+            cvs2D.addEventListener("touchcancel",evtTouchCancel,{capture:false,once:false,passive:false});
+            cvs2D.addEventListener("wheel",evtWheel,{capture:false,once:false,passive:false});
+
+            cvsWebGL2.addEventListener("mousedown",evtMouseDown,false);
+            cvsWebGL2.addEventListener("mousemove",evtMouseMove,false);
+            cvsWebGL2.addEventListener("mouseup",evtMouseUp,false);
+            cvsWebGL2.addEventListener("mouseleave",evtMouseLeave,false);
+            cvsWebGL2.addEventListener("touchstart",evtTouchStart,{capture:false,once:false,passive:false});
+            cvsWebGL2.addEventListener("touchmove",evtTouchMove,{capture:false,once:false,passive:false});
+            cvsWebGL2.addEventListener("touchend",evtTouchEnd,{capture:false,once:false,passive:false});
+            cvsWebGL2.addEventListener("touchcancel",evtTouchCancel,{capture:false,once:false,passive:false});
+            cvsWebGL2.addEventListener("wheel",evtWheel,{capture:false,once:false,passive:false});
+
+            divButtonGrid.addEventListener("click",function(evt){
+                isGridOn=!isGridOn;
+                cvs2D.style.visibility=isGridOn?"visible":"hidden";
+                if(isGridOn){
+                    ctx.clearRect(0,0,width,height);
+                    drawCoordinates(ctx,Ox,Oy,xPixelsPerGrid,yPixelsPerGrid,xUnitsPerGrid,yUnitsPerGrid,nSubGridsX,nSubGridsY);
+                }
+            },false);
+
+            divButtonSave.addEventListener("click",function(evt){
+                var saveCvs=document.createElement("canvas");
+                saveCvs.width=width;
+                saveCvs.height=height;
+                var saveCtx=saveCvs.getContext("2d",{alpha:true,desynchronized:true,willReadFrequently:false});
+                saveCtx.drawImage(cvsWebGL2,0,0);
+                if(isGridOn){
+                    saveCtx.drawImage(cvs2D,0,0);
+                }
+                saveCvs.toBlob(function(blob){
+                    var objectURL=URL.createObjectURL(blob);
+                    var win=window.open(objectURL);
+                    win.addEventListener("close",function(evt){
+                        URL.revokeObjectURL(objectURL);
+                    },false);
+                },"image/png",1);
+            },false);
+
+            divButtonRun.addEventListener("click",function(evt){
+                var fn=new Function(textareaInputCode.value);
+                fn();
+            },false);
+
+            window.addEventListener("resize",evtResize,false);
+            init();
+        </script>
+    </body>
+</html>

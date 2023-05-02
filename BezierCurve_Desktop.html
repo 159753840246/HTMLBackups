@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="theme-color" content="#000000"/>
+<title>BezierCurve</title>
+<style type="text/css">
+body{
+background:#000000;
+color:#ffffff;
+}
+canvas{
+border:4px solid #808080;
+position:absolute;
+top:4px;
+left:-516px;
+}
+div{
+background:#000000;
+color:#ffffff;
+position:absolute;
+margin:0px;
+font-size:64px;
+line-height:96px;
+text-align:center;
+}
+#brd{
+border:4px solid #ffff00;
+top:1040px;
+left:-516px;
+width:1024px;
+height:316px;
+}
+.btn{
+border:4px solid #00ff00;
+cursor:pointer;
+}
+#draw{
+border:4px solid #ff0000;
+top:4px;
+left:4px;
+width:184px;
+height:92px;
+}
+#edit{
+border:4px solid #0040ff;
+top:4px;
+left:200px;
+width:184px;
+height:92px;
+}
+#sp{
+top:4px;
+left:396px;
+width:408px;
+height:92px;
+}
+#loop{
+background:#00cc00;
+top:4px;
+left:816px;
+width:92px;
+height:92px;
+}
+#lines{
+background:#00cc00;
+top:4px;
+left:920px;
+width:92px;
+height:92px;
+}
+#toDataURL{
+top:108px;
+left:4px;
+width:498px;
+height:92px;
+}
+#toBlob{
+top:108px;
+left:514px;
+width:498px;
+height:92px;
+}
+#dataIn{
+top:212px;
+left:4px;
+width:498px;
+height:92px;
+}
+#dataOut{
+top:212px;
+left:514px;
+width:498px;
+height:92px;
+}
+#data{
+background:#000000;
+color:#ffffff;
+font-size:24px;
+font-family:monospace;
+border:4px solid #ff8000;
+position:absolute;
+top:1368px;
+left:-516px;
+width:1020px;
+height:1024px;
+}
+#mid{
+margin:0px;
+border:none;
+width:0px;
+height:100%;
+position:absolute;
+left:50%;
+top:0%;
+overflow:display;
+}
+svg{position:absolute;left:0px;top:6px;}
+path{stroke:none;fill:#ffffff;}
+</style>
+</head>
+<body>
+<div id="mid">
+<canvas id="cvs" width="1024" height="1024"></canvas>
+<canvas id="cvs1" width="1024" height="1024"></canvas>
+
+<div id="brd">
+
+<div id="draw" class="btn">Draw</div>
+<div id="edit" class="btn">Edit</div>
+<div id="sp" class="btn"><svg xmlns="http://www.w3.org/2000/svg" width="408px" height="80px" viewBox="0 0 448 512" preserveAspectRatio="xMidYMid meet"><path id="spPath" d="M144 479H48c-26.5 0-48-21.5-48-48V79c0-26.5 21.5-48 48-48h96c26.5 0 48 21.5 48 48v352c0 26.5-21.5 48-48 48zm304-48V79c0-26.5-21.5-48-48-48h-96c-26.5 0-48 21.5-48 48v352c0 26.5 21.5 48 48 48h96c26.5 0 48-21.5 48-48z"/></svg></div>
+<div id="loop" class="btn"> R </div>
+<div id="lines" class="btn"> / </div>
+<div id="toDataURL" class="btn">toDataURL</div>
+<div id="toBlob" class="btn">toBlob</div>
+<div id="dataIn" class="btn">In</div>
+<div id="dataOut" class="btn">Out</div>
+
+</div>
+<textarea id="data"></textarea>
+</div>
+<script type="text/javascript">
+var cvs=document.getElementById("cvs");
+var ctx=cvs.getContext("2d");
+var cvs1=document.getElementById("cvs1");
+var ctx1=cvs1.getContext("2d");
+
+var drawBtn=document.getElementById("draw");
+var editBtn=document.getElementById("edit");
+var spBtn=document.getElementById("sp");
+var dataText=document.getElementById("data");
+var spPath=document.getElementById("spPath");
+
+var play=true,playLoop=true,dispLines=true;
+var drawing=false,editing=false;
+
+ctx.imageSmoothingEnabled=false;
+ctx1.imageSmoothingEnabled=false;
+
+function interpolate(a,b,t){
+return (b-a)*t+a;
+}
+
+function bezier(arrp,t){
+var a=arrp.slice(0);
+var len=a.length;
+while(len>2){
+for(var i=0,j=1;j<len;i+=2,j+=2){
+a[i]=interpolate(a[i],a[i+2],t);
+a[j]=interpolate(a[j],a[j+2],t);
+}
+a.pop();
+a.pop();
+len-=2;
+}
+return a;
+}
+
+function bezierColored(arrp,t){
+var a=arrp.slice(0);
+var len=a.length,l0=len;
+while(len>2){
+for(var i=0,j=1;j<len;i+=2,j+=2){
+a[i]=interpolate(a[i],a[i+2],t);
+a[j]=interpolate(a[j],a[j+2],t);
+}
+a.pop();
+a.pop();
+len-=2;
+drawLD1(ctx1,a,"hsl("+360*(1-len/l0)+",100%,50%)");
+}
+drawLD1(ctx1,a,"hsl("+360*(1-len/l0)+",100%,50%)");
+return a;
+}
+
+function drawBezier(c,arrp,ts,te,dt){
+var u=ts+dt;
+var pos=bezier(arrp,ts);
+c.beginPath();
+c.moveTo(pos[0],pos[1]);
+while(u<=te){
+pos=bezier(arrp,u);
+c.lineTo(pos[0],pos[1]);
+u+=dt;
+}
+c.stroke();
+c.closePath();
+posInit=pos;
+}
+
+function drawLines(c,arrp){
+var l=arrp.length;
+if(l<4||l&1){return;}
+c.beginPath();
+c.moveTo(arrp[0],arrp[1]);
+for(var i=2,j=3;j<l;i+=2,j+=2){
+c.lineTo(arrp[i],arrp[j]);
+}
+c.stroke();
+c.closePath();
+}
+
+function drawCircle(c,x,y,r){
+c.beginPath();
+c.moveTo(x+r,y);
+c.arc(x,y,r,0,7,false);
+c.fill();
+c.stroke();
+c.closePath();
+}
+
+function drawDots(c,arrp,pz){
+var l=pz.length,idx=0;
+if(!l){return;}
+for(var i=0;i<l;i++){
+idx=pz[i]<<1;
+drawCircle(c,arrp[idx],arrp[idx+1],4);
+}
+}
+
+function drawLD(c,arrp,pz){
+c.fillStyle="#ff8000";
+c.strokeStyle="#ffffff";
+c.lineWidth=1;
+drawLines(c,arrp);
+drawDots(c,arrp,pz);
+}
+
+function drawLD1(c,arrp,clr){
+var l=arrp.length,x=0,y=0;
+if(l&1){return;}
+c.fillStyle=clr;
+c.strokeStyle=clr;
+c.lineWidth=1;
+drawLines(c,arrp);
+c.beginPath();
+for(var i=0,j=1;j<l;i+=2,j+=2){
+x=arrp[i];
+y=arrp[j];
+c.moveTo(x,y);
+c.arc(x,y,4,0,7,false);
+}
+c.fill();
+c.closePath();
+}
+
+function startPause(evt){
+play=!play;
+if(play){
+anim();
+spPath.setAttribute("d","M144 479H48c-26.5 0-48-21.5-48-48V79c0-26.5 21.5-48 48-48h96c26.5 0 48 21.5 48 48v352c0 26.5-21.5 48-48 48zm304-48V79c0-26.5-21.5-48-48-48h-96c-26.5 0-48 21.5-48 48v352c0 26.5 21.5 48 48 48h96c26.5 0 48-21.5 48-48z");
+}else{
+spPath.setAttribute("d","M424.4 214.7L72.4 6.6C43.8-10.3 0 6.1 0 47.9V464c0 37.5 40.7 60.1 72.4 41.3l352-208c31.4-18.5 31.5-64.1 0-82.6z");
+}
+}
+
+function userDraw(evt){
+evt.preventDefault();
+var X=evt.offsetX,Y=evt.offsetY;
+points.push(X,Y);
+pointsZIndex.push(pointsZIndex.length);
+ctx1.clearRect(0,0,1024,1024);
+drawLD(ctx1,points,pointsZIndex);
+if(points.length==4){
+drawBtn.style.background="#000000";
+drawBtn.addEventListener("click",finishDraw,false);
+drawBtn.innerHTML="Finish";
+editBtn.addEventListener("click",startEdit,false);
+editBtn.style.background="#000000";
+}
+}
+
+function startDraw(){
+drawing=true;
+if(editing){finishEdit();}
+if(play){startPause();setTimeout(startDraw,200);return;}
+ctx.fillRect(0,0,1024,1024);
+ctx1.clearRect(0,0,1024,1024);
+dispLines=true;
+cvs1.style.visibility="visible";
+document.getElementById("lines").style.background="#00cc00";
+cvs1.addEventListener("click",userDraw,false);
+if(confirm("Erase?")){
+points=[];
+pointsZIndex=[];
+drawBtn.style.background="#808080";
+editBtn.removeEventListener("click",startEdit,false);
+editBtn.style.background="#808080";
+}else{
+drawLD(ctx1,points,pointsZIndex);
+drawBtn.style.background="#000000";
+drawBtn.addEventListener("click",finishDraw,false);
+drawBtn.innerHTML="Finish";
+}
+drawBtn.removeEventListener("click",startDraw,false);
+}
+
+function finishDraw(){
+cvs1.removeEventListener("click",userDraw,false);
+drawBtn.removeEventListener("click",finishDraw,false);
+drawBtn.addEventListener("click",startDraw,false);
+drawBtn.innerHTML="Draw";
+init();
+drawing=false;
+}
+
+drawBtn.addEventListener("click",startDraw,false);
+
+spBtn.addEventListener("click",startPause,false);
+
+document.getElementById("loop").addEventListener("click",function(evt){
+playLoop=!playLoop;
+if(playLoop){
+evt.target.style.background="#00cc00";
+}else{
+evt.target.style.background="#000000";
+}
+},false);
+
+document.getElementById("lines").addEventListener("click",function(evt){
+dispLines=!dispLines;
+if(dispLines){
+cvs1.style.visibility="visible";
+evt.target.style.background="#00cc00";
+}else{
+cvs1.style.visibility="hidden";
+evt.target.style.background="#000000";
+}
+},false);
+
+document.getElementById("toDataURL").addEventListener("click",function(evt){
+if(dispLines){ctx.drawImage(cvs1,0,0,1024,1024,0,0,1024,1024);}
+window.open(cvs.toDataURL("image/png",1));
+},false);
+
+document.getElementById("toBlob").addEventListener("click",function(evt){
+if(dispLines){ctx.drawImage(cvs1,0,0,1024,1024,0,0,1024,1024);}
+cvs.toBlob(function(blob){
+window.open(URL.createObjectURL(blob));
+},"image/png");
+},false);
+
+document.getElementById("dataOut").addEventListener("click",function(evt){
+dataText.value+="Out=["+points+"]["+[tStart,tEnd,dt]+"];\n";
+},false);
+
+document.getElementById("dataIn").addEventListener("click",function(evt){
+if(play){startPause();}
+var matched=dataText.value.match(/In\s*=\s*\x5b[\d\x20\x2c\x2d\x2e]+\x5d\s*(?:\x5b[\d\x20\x2c\x2d\x2e]+\x5d)?\s*(?=\x3b)/ig);
+if(!(matched&&matched.length)){return;}
+var str=matched[matched.length-1];
+var separator=str.indexOf("]");
+var arr=str.slice(str.indexOf("[")+1,separator).split(",").map(parseFloat);
+str=str.slice(separator+1);
+var argv=str.slice(str.indexOf("[")+1,str.indexOf("]")).split(",").map(parseFloat);
+var len=arr.length,argc=argv.length;
+if(len<4){alert("Error!");return;}
+if(len&1){arr.pop();}
+points=arr;
+len>>>=1;
+var brr=[];
+for(var i=0;i<len;i++){
+brr.push(i);
+}
+pointsZIndex=brr;
+if(argv&&isFinite(argv[0])){
+if(argc===1){dt=argv[0];}
+if(argc===2){tStart=argv[0];tEnd=argv[1];}
+if(argc===3){tStart=argv[0];tEnd=argv[1];dt=argv[2];}
+if(argc>3){tStart=0;tEnd=1;dt=0.0009765625;}
+}
+init();
+},false);
+
+function startDrag(evt){
+evt.preventDefault();
+var X=evt.offsetX,Y=evt.offsetY;
+var idx=0;
+for(var i=pointsZIndex.length-1;i>=0;i--){
+idx=pointsZIndex[i]<<1;
+if(Math.hypot(points[idx]-X,points[idx+1]-Y)<=4.5){break;}
+}
+if(i===-1){return;}
+pointsZIndex.splice(i,1);
+pointsZIndex.push(idx>>>1);
+ctx1.clearRect(0,0,1024,1024);
+drawLD(ctx1,points,pointsZIndex);
+cvs1.addEventListener("mousemove",moveDrag,false);
+cvs1.addEventListener("mouseup",endDrag,false);
+}
+
+function moveDrag(evt){
+evt.preventDefault();
+var X=evt.offsetX,Y=evt.offsetY;
+var idx=pointsZIndex[pointsZIndex.length-1]<<1;
+points[idx]=X;
+points[idx+1]=Y;
+ctx.fillRect(0,0,1024,1024);
+ctx1.clearRect(0,0,1024,1024);
+drawLD(ctx1,points,pointsZIndex);
+drawBezier(ctx,points,tStart,t,dt);
+}
+
+function endDrag(evt){
+evt.preventDefault();
+var X=evt.offsetX,Y=evt.offsetY;
+var idx=pointsZIndex[pointsZIndex.length-1]<<1;
+points[idx]=X;
+points[idx+1]=Y;
+drawLD(ctx1,points,pointsZIndex);
+drawBezier(ctx,points,tStart,t,dt);
+cvs1.removeEventListener("mousemove",moveDrag,false);
+cvs1.removeEventListener("mouseup",endDrag,false);
+}
+
+function startEdit(){
+editing=true;
+if(drawing){finishDraw();}
+if(play){startPause();setTimeout(startEdit,200);return;}
+ctx.fillRect(0,0,1024,1024);
+ctx1.clearRect(0,0,1024,1024);
+drawLD(ctx1,points,pointsZIndex);
+drawBezier(ctx,points,tStart,t,dt);
+dispLines=true;
+cvs1.style.visibility="visible";
+document.getElementById("lines").style.background="#00cc00";
+cvs1.addEventListener("mousedown",startDrag,false);
+editBtn.removeEventListener("click",startEdit,false);
+editBtn.addEventListener("click",finishEdit,false);
+editBtn.innerHTML="Finish";
+}
+
+function finishEdit(){
+cvs1.removeEventListener("mousedown",startDrag,false);
+editBtn.addEventListener("click",startEdit,false);
+editBtn.removeEventListener("click",finishEdit,false);
+editBtn.innerHTML="Edit";
+init();
+editing=false;
+}
+
+editBtn.addEventListener("click",startEdit,false);
+
+ctx.fillStyle="#000000";
+ctx.strokeStyle="#ffff00";
+ctx.lineWidth=2;
+ctx1.fillStyle="#ff8000";
+ctx1.strokeStyle="#ffffff";
+ctx1.lineWidth=1;
+
+var points=[0,512,256,0,768,1024,1024,512];
+var pointsZIndex=[0,1,2,3];
+var tStart=0,tEnd=1,dt=0.0009765625;
+var t=tStart,posInit=[];
+
+function init(){
+t=tStart;
+posInit=bezier(points,t);
+ctx.fillRect(0,0,1024,1024);
+ctx1.clearRect(0,0,1024,1024);
+drawLD1(ctx1,points,"#ffffff");
+}
+
+function anim(){
+ctx1.clearRect(0,0,1024,1024);
+drawLD1(ctx1,points,"#ffffff");
+ctx.beginPath();
+ctx.moveTo(posInit[0],posInit[1]);
+t+=dt;
+var pos=bezierColored(points,t);
+ctx.lineTo(pos[0],pos[1]);
+ctx.stroke();
+posInit=pos;
+if(t>tEnd){
+if(playLoop){
+init();
+}else{
+t=tEnd;
+if(play){startPause();}
+}
+}
+if(play){requestAnimationFrame(anim);}
+}
+
+init();
+anim();
+
+
+</script>
+</body>
+</html>
